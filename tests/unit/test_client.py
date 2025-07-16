@@ -21,12 +21,12 @@ class TestJobInitialization:
     def test_job_initialization_with_defaults(self, mock_gcp_clients):
         """Test that Job initializes correctly with default config."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
         
-        assert job.model == "gemini-1.5-flash"
+        assert job.model == "gemini-2.0-flash-lite-001"
         assert job.output_schema == SimpleOutput
         assert job.prompt_template == "Test: {{ word }}"
         assert job.simulation_mode is False
@@ -36,7 +36,7 @@ class TestJobInitialization:
     def test_job_initialization_with_simulation_mode(self, mock_gcp_clients):
         """Test that Job initializes correctly with simulation mode."""
         job = Job(
-            model="gemini-1.5-pro",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -50,7 +50,7 @@ class TestJobInitialization:
         
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}"
             )
@@ -72,7 +72,7 @@ class TestJobInitialization:
         
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}"
             )
@@ -86,7 +86,7 @@ class TestJobRequestManagement:
     def test_add_request_success(self, mock_gcp_clients):
         """Test successfully adding a request to a job."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -102,7 +102,7 @@ class TestJobRequestManagement:
     def test_add_request_after_submission_fails(self, mock_gcp_clients):
         """Test that adding requests after submission raises an error."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -122,7 +122,7 @@ class TestJobSubmission:
     def test_submit_without_requests_fails(self, mock_gcp_clients):
         """Test that submitting without requests raises an error."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -135,7 +135,7 @@ class TestJobSubmission:
     def test_submit_simulation_mode(self, mock_gcp_clients):
         """Test that simulation mode skips actual submission."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -150,7 +150,7 @@ class TestJobSubmission:
     def test_submit_dry_run(self, mock_gcp_clients, capsys):
         """Test that dry run shows payload without submitting."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -167,7 +167,7 @@ class TestJobSubmission:
     def test_submit_success(self, mock_gcp_clients):
         """Test successful job submission."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -186,7 +186,7 @@ class TestJobWaiting:
     def test_wait_simulation_mode(self, mock_gcp_clients):
         """Test that wait() skips in simulation mode."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -200,7 +200,7 @@ class TestJobWaiting:
         caplog.set_level(logging.WARNING)
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -216,7 +216,7 @@ class TestJobWaiting:
         caplog.set_level(logging.INFO)
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -239,7 +239,7 @@ class TestJobResults:
     def test_results_simulation_mode(self, mock_gcp_clients):
         """Test that results() returns dummy data in simulation mode."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -260,7 +260,7 @@ class TestJobResults:
     def test_results_without_submission_fails(self, mock_gcp_clients):
         """Test that results() fails when no job was submitted."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -273,7 +273,7 @@ class TestJobResults:
     def test_results_uses_cache(self, mock_gcp_clients):
         """Test that results() uses cache when available."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -301,7 +301,7 @@ class TestDummyResultsGeneration:
     def test_generate_dummy_results_simple_schema(self, mock_gcp_clients):
         """Test dummy results generation for simple schema."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -328,7 +328,7 @@ class TestDummyResultsGeneration:
             optional_field: str = "default"
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=RequiredFieldsOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -348,7 +348,7 @@ class TestCloudResourceSetup:
     def test_setup_cloud_resources_bucket_exists(self, mock_gcp_clients):
         """Test _setup_cloud_resources when bucket already exists."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -375,7 +375,7 @@ class TestCloudResourceSetup:
     def test_setup_cloud_resources_bucket_not_found(self, mock_gcp_clients):
         """Test _setup_cloud_resources when bucket doesn't exist."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -406,7 +406,7 @@ class TestCloudResourceSetup:
     def test_setup_cloud_resources_dataset_not_found(self, mock_gcp_clients):
         """Test _setup_cloud_resources when dataset doesn't exist."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -436,7 +436,7 @@ class TestFileUpload:
     def test_upload_file_to_gcs_bytes(self, mock_gcp_clients):
         """Test uploading bytes to GCS."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -463,7 +463,7 @@ class TestFileUpload:
     def test_upload_file_to_gcs_path(self, mock_gcp_clients, tmp_path):
         """Test uploading file path to GCS."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -497,7 +497,7 @@ class TestFileUpload:
         temp_file.write_text("test content")
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ image }}"
         )
@@ -528,7 +528,7 @@ class TestJsonlPayload:
     def test_create_jsonl_payload_simple(self, mock_gcp_clients):
         """Test creating JSONL payload with simple text data."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -556,7 +556,7 @@ class TestJsonlPayload:
     def test_create_jsonl_payload_with_file(self, mock_gcp_clients, tmp_path):
         """Test creating JSONL payload with file data."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ image }}"
         )
@@ -590,7 +590,7 @@ class TestPayloadGeneration:
     def test_create_jsonl_payload_text_only(self, mock_gcp_clients):
         """Test payload generation with text-only input."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process this word: {{ word }}"
         )
@@ -633,7 +633,7 @@ class TestPayloadGeneration:
         )
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Custom: {{ word }}",
             generation_config=custom_config
@@ -661,7 +661,7 @@ class TestPayloadGeneration:
         
         try:
             job = Job(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Process {{ text }} from file"
             )
@@ -690,7 +690,7 @@ class TestPayloadGeneration:
     def test_create_jsonl_payload_mixed_input(self, mock_gcp_clients):
         """Test payload generation with mixed text and file inputs."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ word }} and {{ image }}"
         )
@@ -731,7 +731,7 @@ class TestPayloadGeneration:
     def test_instance_id_generation(self, mock_gcp_clients):
         """Test that instance IDs are generated correctly."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -766,7 +766,7 @@ class TestJobEdgeCases:
     def test_wait_method_without_job(self, mock_gcp_clients):
         """Test wait method when no job has been submitted."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -778,7 +778,7 @@ class TestJobEdgeCases:
     def test_results_method_real_job(self, mock_gcp_clients):
         """Test results method with real job (not simulation mode)."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -800,7 +800,7 @@ class TestJobEdgeCases:
             count: int = Field(default_factory=lambda: 5)
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithFactory,
             prompt_template="Test",
             simulation_mode=True
@@ -824,7 +824,7 @@ class TestJobEdgeCases:
             optional_value: Optional[str] = None
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithUnion,
             prompt_template="Test",
             simulation_mode=True
@@ -851,7 +851,7 @@ class TestJobEdgeCases:
             dict_field: dict[str, str]
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithManyTypes,
             prompt_template="Test",
             simulation_mode=True
@@ -885,7 +885,7 @@ class TestJobEdgeCases:
             custom_field: str
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithComplexType,
             prompt_template="Test",
             simulation_mode=True
@@ -911,7 +911,7 @@ class TestJobEdgeCases:
             enabled: bool = False
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithDefaults,
             prompt_template="Test",
             simulation_mode=True
@@ -935,7 +935,7 @@ class TestJobEdgeCases:
             data: bytes
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ data }}"
         )
@@ -972,7 +972,7 @@ class TestJobEdgeCases:
         temp_file.write_text("test content")
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ file_path }}"
         )
@@ -1005,7 +1005,7 @@ class TestJobEdgeCases:
             custom_field: str
             
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=OutputWithUnknownType,
             prompt_template="Test",
             simulation_mode=True
@@ -1025,7 +1025,7 @@ class TestJobEdgeCases:
     def test_results_job_not_succeeded(self, mock_gcp_clients):
         """Test that results() fails when job is not in succeeded state."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -1042,7 +1042,7 @@ class TestJobEdgeCases:
     def test_results_bigquery_parsing_success(self, mock_gcp_clients):
         """Test successful BigQuery result parsing."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -1086,7 +1086,7 @@ class TestJobEdgeCases:
     def test_results_bigquery_parsing_no_function_call(self, mock_gcp_clients):
         """Test BigQuery result parsing when model doesn't return function call."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -1127,7 +1127,7 @@ class TestJobEdgeCases:
     def test_results_bigquery_parsing_validation_error(self, mock_gcp_clients):
         """Test BigQuery result parsing when validation fails."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -1171,7 +1171,7 @@ class TestJobEdgeCases:
     def test_results_bigquery_query_error(self, mock_gcp_clients):
         """Test BigQuery result parsing when query fails."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )

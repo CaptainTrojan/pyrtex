@@ -22,7 +22,7 @@ class SimpleOutput(BaseModel):
     result: str
 class FileInput(BaseModel):
     text: str
-    file_content: bytes
+    file_path: str  # This will be automatically detected as a file by the client
 class ComplexOutput(BaseModel):
     summary: str
     confidence: float
@@ -34,7 +34,7 @@ class TestDryRun:
     def test_dry_run_output_text_only(self, mock_gcp_clients, capsys):
         """Verify that dry_run produces plausible JSONL output and doesn't submit."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process this word: {{ word }}"
         )
@@ -53,7 +53,7 @@ class TestDryRun:
     def test_dry_run_output_with_files(self, mock_gcp_clients, capsys):
         """Verify dry run works with file inputs."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ text }} from the uploaded file"
         )
@@ -76,7 +76,7 @@ class TestDryRun:
     def test_dry_run_multiple_requests(self, mock_gcp_clients, capsys):
         """Test dry run with multiple requests."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Word: {{ word }}"
         )
@@ -99,7 +99,7 @@ class TestSimulationMode:
     def test_simulation_mode_basic(self, mock_gcp_clients):
         """Verify that simulation_mode returns dummy data without hitting GCP."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process: {{ word }}",
             simulation_mode=True
@@ -122,7 +122,7 @@ class TestSimulationMode:
     def test_simulation_mode_multiple_requests(self, mock_gcp_clients):
         """Test simulation mode with multiple requests."""
         job = Job(
-            model="gemini-1.5-pro",
+            model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
             simulation_mode=True
@@ -157,7 +157,7 @@ class TestSimulationMode:
             metadata: dict[str, str]
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=DetailedOutput,
             prompt_template="Analyze: {{ word }}",
             simulation_mode=True
@@ -182,7 +182,7 @@ class TestSimulationMode:
     def test_simulation_mode_chaining(self, mock_gcp_clients):
         """Test that simulation mode supports method chaining."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process: {{ word }}",
             simulation_mode=True
@@ -215,7 +215,7 @@ class TestRealWorldScenarios:
         Make sure to use the function calling capability.'''
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template=prompt
         )
@@ -248,7 +248,7 @@ class TestRealWorldScenarios:
             Call the extract_info function with a summary in the 'result' field.'''
             
             job = Job(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template=prompt
             )
@@ -281,7 +281,7 @@ class TestRealWorldScenarios:
         prompt = '''Process the word "{{ word }}" and return it in the result field.'''
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template=prompt
         )
@@ -312,7 +312,7 @@ class TestRealWorldScenarios:
         prompt = '''Just respond with plain text: {{ word }}'''
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template=prompt
         )
@@ -335,7 +335,7 @@ class TestErrorScenarios:
     def test_submit_without_requests(self, mock_gcp_clients):
         """Test error when submitting without requests."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -347,7 +347,7 @@ class TestErrorScenarios:
     def test_results_without_submission(self, mock_gcp_clients):
         """Test error when getting results without submission."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -359,7 +359,7 @@ class TestErrorScenarios:
     def test_add_request_after_submission(self, mock_gcp_clients):
         """Test error when adding requests after submission."""
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
             simulation_mode=True
@@ -382,7 +382,7 @@ class TestRealBigQueryResultParsing:
         
         # Create a job with real configuration but mock the BigQuery client
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
@@ -479,7 +479,7 @@ class TestRealBigQueryResultParsing:
         from unittest.mock import Mock
         
         job = Job(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
