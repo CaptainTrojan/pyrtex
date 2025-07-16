@@ -18,8 +18,7 @@ class SimpleOutput(BaseModel):
 
 
 class FileInput(BaseModel):
-    text: str
-    file_path: str
+    image: str
 
 
 class ComplexOutput(BaseModel):

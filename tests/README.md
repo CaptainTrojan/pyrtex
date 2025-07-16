@@ -45,19 +45,28 @@ python test_runner.py lint
 
 #### Integration Tests (`tests/integration/`)
 - **Dry run tests** - Test payload generation without submission
-- **Simulation mode tests** - Test dummy data generation
-- **Real GCP tests** - Marked with `@pytest.mark.incurs_costs` and skipped by default
+- **Simulation mode tests** - Test dummy data generation  
+- **Real GCP tests** - Marked with `@pytest.mark.incurs_costs`, run by default but skipped in CI
 
 ### Test Markers
 
-- `@pytest.mark.e2e` - End-to-end tests that may require GCP setup
-- `@pytest.mark.incurs_costs` - Tests that will incur small GCP costs (skipped by default)
+- `@pytest.mark.incurs_costs` - Tests that will incur small GCP costs
 
 ### Running Specific Test Types
 
 ```bash
 # Run only unit tests
 pytest tests/unit/ -v
+
+# Run only mocked tests (no GCP costs)
+pytest -m "not incurs_costs" -v
+
+# Run ALL tests including real GCP tests (incurs costs)
+pytest -v
+
+# Or use the test runner script
+./test_runner.sh           # Mocked tests only
+./test_runner.sh --real    # All tests including real GCP
 
 # Run only integration tests (excluding costly ones)
 pytest tests/integration/ -v -m "not incurs_costs"

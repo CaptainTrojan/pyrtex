@@ -9,33 +9,23 @@ import os
 # Import from the actual package structure
 from pyrtex.client import Job
 from pyrtex.models import BatchResult
-
-
 # Test schemas
 class SimpleInput(BaseModel):
     word: str
-
-
 class SimpleOutput(BaseModel):
     result: str
-
-
 class FileInput(BaseModel):
     text: str
     file_content: bytes
-
-
 class ComplexOutput(BaseModel):
     summary: str
     confidence: float
     keywords: list[str]
-
-
 class TestDryRun:
     """Test dry run functionality."""
     
-    @pytest.mark.e2e
-    def test_dry_run_output_text_only(self, capsys):
+    
+    def test_dry_run_output_text_only(self, mock_gcp_clients, capsys):
         """Verify that dry_run produces plausible JSONL output and doesn't submit."""
         job = Job(
             model="gemini-1.5-flash",
@@ -53,8 +43,8 @@ class TestDryRun:
         assert "extract_info" in captured.out
         assert "Dry run enabled. Job was not submitted." in captured.err
     
-    @pytest.mark.e2e
-    def test_dry_run_output_with_files(self, capsys):
+    
+    def test_dry_run_output_with_files(self, mock_gcp_clients, capsys):
         """Verify dry run works with file inputs."""
         job = Job(
             model="gemini-1.5-flash",
@@ -76,8 +66,8 @@ class TestDryRun:
         assert "mime_type" in captured.out
         assert "Process analyze this from the uploaded file" in captured.out
     
-    @pytest.mark.e2e
-    def test_dry_run_multiple_requests(self, capsys):
+    
+    def test_dry_run_multiple_requests(self, mock_gcp_clients, capsys):
         """Test dry run with multiple requests."""
         job = Job(
             model="gemini-1.5-flash",
@@ -96,13 +86,11 @@ class TestDryRun:
         assert "Generated JSONL Payload (first 3 lines):" in captured.out
         # Should show all 3 lines since we only have 3 requests
         assert captured.out.count('"id": "req_') == 3
-
-
 class TestSimulationMode:
     """Test simulation mode functionality."""
     
-    @pytest.mark.e2e
-    def test_simulation_mode_basic(self):
+    
+    def test_simulation_mode_basic(self, mock_gcp_clients):
         """Verify that simulation_mode returns dummy data without hitting GCP."""
         job = Job(
             model="gemini-1.5-flash",
@@ -124,8 +112,8 @@ class TestSimulationMode:
         assert result.usage_metadata["candidatesTokenCount"] == 0
         assert "dummy response" in result.raw_response["note"]
     
-    @pytest.mark.e2e
-    def test_simulation_mode_multiple_requests(self):
+    
+    def test_simulation_mode_multiple_requests(self, mock_gcp_clients):
         """Test simulation mode with multiple requests."""
         job = Job(
             model="gemini-1.5-pro",
@@ -152,8 +140,8 @@ class TestSimulationMode:
             assert isinstance(result.output, ComplexOutput)
             assert result.usage_metadata["totalTokenCount"] == 0
     
-    @pytest.mark.e2e
-    def test_simulation_mode_with_complex_schema(self):
+    
+    def test_simulation_mode_with_complex_schema(self, mock_gcp_clients):
         """Test simulation mode with complex output schema."""
         class DetailedOutput(BaseModel):
             title: str
@@ -184,8 +172,8 @@ class TestSimulationMode:
         assert hasattr(result.output, 'score')
         assert hasattr(result.output, 'metadata')
     
-    @pytest.mark.e2e
-    def test_simulation_mode_chaining(self):
+    
+    def test_simulation_mode_chaining(self, mock_gcp_clients):
         """Test that simulation mode supports method chaining."""
         job = Job(
             model="gemini-1.5-flash",
@@ -205,18 +193,14 @@ class TestSimulationMode:
         assert len(results) == 1
         assert results[0].request_key == "chain_test"
         assert results[0].was_successful
-
-
 class TestRealWorldScenarios:
-    """Integration tests that would run against real GCP (marked to skip by default)."""
+    """Integration tests that use real GCP services and incur costs."""
     
-    @pytest.mark.e2e
     @pytest.mark.incurs_costs
-    @pytest.mark.skip(reason="Requires real GCP setup and incurs costs")
     def test_full_run_simple_text(self):
         """
-        The full end-to-end test. This will submit a real job to Vertex AI.
-        It requires the user to be authenticated and to have set up GCP resources.
+        Full end-to-end test that submits a real job to Vertex AI.
+        Requires GCP authentication and will incur small costs.
         """
         # Simple prompt engineering: Tell the model exactly what to do
         prompt = '''The user provided a word: '{{ word }}'. 
@@ -242,11 +226,10 @@ class TestRealWorldScenarios:
         assert result.error is None
         assert result.usage_metadata["totalTokenCount"] > 0
     
-    @pytest.mark.e2e
+    
     @pytest.mark.incurs_costs
-    @pytest.mark.skip(reason="Requires real GCP setup and incurs costs")
     def test_full_run_with_file(self):
-        """Test full run with file input."""
+        """Test full run with file input - uses real GCP services."""
         # Create a temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             f.write("This is a test document for analysis.")
@@ -282,11 +265,10 @@ class TestRealWorldScenarios:
             # Clean up
             os.unlink(temp_file_path)
     
-    @pytest.mark.e2e
+    
     @pytest.mark.incurs_costs
-    @pytest.mark.skip(reason="Requires real GCP setup and incurs costs")
     def test_full_run_batch_processing(self):
-        """Test batch processing with multiple requests."""
+        """Test batch processing with multiple requests - uses real GCP services."""
         prompt = '''Process the word "{{ word }}" and return it in the result field.'''
         
         job = Job(
@@ -312,11 +294,10 @@ class TestRealWorldScenarios:
         result_words = {r.output.result for r in successful_results}
         assert result_words == set(test_words)
     
-    @pytest.mark.e2e
+    
     @pytest.mark.incurs_costs
-    @pytest.mark.skip(reason="Requires real GCP setup and incurs costs")
     def test_error_handling_invalid_prompt(self):
-        """Test error handling with invalid prompts."""
+        """Test error handling with invalid prompts - uses real GCP services."""
         # This prompt doesn't instruct the model to use function calling
         prompt = '''Just respond with plain text: {{ word }}'''
         
@@ -337,13 +318,11 @@ class TestRealWorldScenarios:
         assert not result.was_successful
         assert result.error is not None
         assert result.output is None
-
-
 class TestErrorScenarios:
     """Test error scenarios that don't require real GCP."""
     
-    @pytest.mark.e2e
-    def test_submit_without_requests(self):
+    
+    def test_submit_without_requests(self, mock_gcp_clients):
         """Test error when submitting without requests."""
         job = Job(
             model="gemini-1.5-flash",
@@ -354,8 +333,8 @@ class TestErrorScenarios:
         with pytest.raises(RuntimeError, match="Cannot submit a job with no requests"):
             job.submit()
     
-    @pytest.mark.e2e
-    def test_results_without_submission(self):
+    
+    def test_results_without_submission(self, mock_gcp_clients):
         """Test error when getting results without submission."""
         job = Job(
             model="gemini-1.5-flash",
@@ -366,8 +345,8 @@ class TestErrorScenarios:
         with pytest.raises(RuntimeError, match="Cannot get results for a job that has not been submitted"):
             list(job.results())
     
-    @pytest.mark.e2e
-    def test_add_request_after_submission(self):
+    
+    def test_add_request_after_submission(self, mock_gcp_clients):
         """Test error when adding requests after submission."""
         job = Job(
             model="gemini-1.5-flash",
@@ -381,3 +360,158 @@ class TestErrorScenarios:
         
         with pytest.raises(RuntimeError, match="Cannot add requests after job has been submitted"):
             job.add_request("test2", SimpleInput(word="world"))
+class TestRealBigQueryResultParsing:
+    """Test the real BigQuery result parsing logic without mocking."""
+    
+    def test_bigquery_result_parsing_with_mock_data(self):
+        """Test the BigQuery result parsing logic with mock row data."""
+        from pyrtex.client import Job
+        from pyrtex.models import BatchResult
+        import json
+        from unittest.mock import Mock
+        
+        # Create a job with real configuration but mock the BigQuery client
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        # Set up the job as if it was submitted
+        job._instance_map = {
+            "req_00000_12345678": "test_key_1",
+            "req_00001_87654321": "test_key_2"
+        }
+        
+        # Create mock BigQuery rows that simulate real response data
+        mock_rows = [
+            Mock(
+                id="req_00000_12345678",
+                response=json.dumps({
+                    "candidates": [{
+                        "content": {
+                            "parts": [{
+                                "functionCall": {
+                                    "name": "extract_info",
+                                    "args": {"result": "test_output_1"}
+                                }
+                            }]
+                        }
+                    }],
+                    "usageMetadata": {
+                        "promptTokenCount": 10,
+                        "candidatesTokenCount": 5,
+                        "totalTokenCount": 15
+                    }
+                })
+            ),
+            Mock(
+                id="req_00001_87654321",
+                response=json.dumps({
+                    "candidates": [{
+                        "content": {
+                            "parts": [{
+                                "functionCall": {
+                                    "name": "extract_info",
+                                    "args": {"result": "test_output_2"}
+                                }
+                            }]
+                        }
+                    }],
+                    "usageMetadata": {
+                        "promptTokenCount": 12,
+                        "candidatesTokenCount": 8,
+                        "totalTokenCount": 20
+                    }
+                })
+            )
+        ]
+        
+        # Mock the BigQuery client and job
+        mock_batch_job = Mock()
+        mock_batch_job.state = "JOB_STATE_SUCCEEDED"
+        mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
+        job._batch_job = mock_batch_job
+        
+        mock_query_job = Mock()
+        mock_query_job.result.return_value = mock_rows
+        job._bigquery_client.query.return_value = mock_query_job
+        
+        # Test the actual result parsing logic
+        results = list(job.results())
+        
+        # Verify results
+        assert len(results) == 2
+        
+        result1 = results[0]
+        assert result1.request_key == "test_key_1"
+        assert result1.output.result == "test_output_1"
+        assert result1.usage_metadata["totalTokenCount"] == 15
+        assert result1.error is None
+        
+        result2 = results[1]
+        assert result2.request_key == "test_key_2"
+        assert result2.output.result == "test_output_2"
+        assert result2.usage_metadata["totalTokenCount"] == 20
+        assert result2.error is None
+        
+        # Verify the BigQuery query was called correctly
+        expected_query = "SELECT id, response FROM `project.dataset.table`"
+        job._bigquery_client.query.assert_called_once_with(expected_query)
+        
+    def test_bigquery_result_parsing_with_model_errors(self):
+        """Test BigQuery result parsing when model returns errors."""
+        from pyrtex.client import Job
+        import json
+        from unittest.mock import Mock
+        
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        
+        # Create mock row with invalid response (no function call)
+        mock_rows = [
+            Mock(
+                id="req_00000_12345678",
+                response=json.dumps({
+                    "candidates": [{
+                        "content": {
+                            "parts": [{
+                                "text": "I cannot follow the instructions"
+                            }]
+                        }
+                    }],
+                    "usageMetadata": {
+                        "promptTokenCount": 10,
+                        "candidatesTokenCount": 5,
+                        "totalTokenCount": 15
+                    }
+                })
+            )
+        ]
+        
+        # Mock the BigQuery client and job
+        mock_batch_job = Mock()
+        mock_batch_job.state = "JOB_STATE_SUCCEEDED"
+        mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
+        job._batch_job = mock_batch_job
+        
+        mock_query_job = Mock()
+        mock_query_job.result.return_value = mock_rows
+        job._bigquery_client.query.return_value = mock_query_job
+        
+        # Test the result parsing with errors
+        results = list(job.results())
+        
+        # Verify error handling
+        assert len(results) == 1
+        result = results[0]
+        assert result.request_key == "test_key_1"
+        assert result.output is None
+        assert result.error is not None
+        assert "Failed to parse model output" in result.error
+        assert result.usage_metadata["totalTokenCount"] == 15

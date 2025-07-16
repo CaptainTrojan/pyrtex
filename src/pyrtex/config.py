@@ -18,10 +18,10 @@ class InfrastructureConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='PYRTEX_', extra='ignore')
 
     # If not provided, pyrtex will attempt to discover it from the environment.
-    project_id: Optional[str] = Field(default=None, alias="GOOGLE_PROJECT_ID")
+    project_id: Optional[str] = Field(default=None)
     
     # If not provided, defaults to the same as project_id.
-    location: Optional[str] = Field(default="us-central1", alias="GOOGLE_LOCATION")
+    location: Optional[str] = Field(default="us-central1")
     
     # If not provided, a default bucket will be created/used.
     # e.g., "pyrtex-assets-[project_id]"
@@ -30,6 +30,24 @@ class InfrastructureConfig(BaseSettings):
     # If not provided, a default dataset will be created/used.
     # e.g., "pyrtex_results"
     bq_dataset_id: Optional[str] = None
+
+    def __init__(self, **data):
+        # Load from environment variables first
+        env_values = {}
+        
+        # Check for specific environment variables
+        import os
+        google_project_id = os.getenv('GOOGLE_PROJECT_ID')
+        if google_project_id and 'project_id' not in data:
+            env_values['project_id'] = google_project_id
+            
+        google_location = os.getenv('GOOGLE_LOCATION')
+        if google_location and 'location' not in data:
+            env_values['location'] = google_location
+            
+        # Merge environment values with explicit data (explicit takes precedence)
+        merged_data = {**env_values, **data}
+        super().__init__(**merged_data)
 
 
 class GenerationConfig(BaseModel):
