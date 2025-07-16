@@ -29,17 +29,19 @@ class Job(Generic[T]):
 
     def __init__(
         self,
+        model: str,
         output_schema: Type[T],
         prompt_template: str,
-        model: str = "gemini-1.5-flash-001",
         generation_config: Optional[GenerationConfig] = None,
         config: Optional[InfrastructureConfig] = None,
+        simulation_mode: bool = False,
     ):
+        self.model = model
         self.output_schema = output_schema
         self.prompt_template = prompt_template
-        self.model = model
         self.generation_config = generation_config or GenerationConfig()
         self.config = config or InfrastructureConfig()
+        self.simulation_mode = simulation_mode
 
         self._session_id: str = uuid.uuid4().hex[:10]
         self._requests: List[tuple[Hashable, BaseModel]] = []
@@ -181,6 +183,11 @@ class Job(Generic[T]):
         if not self._requests:
             raise RuntimeError("Cannot submit a job with no requests. Use .add_request() first.")
         
+        if self.simulation_mode:
+            logger.info("Simulation mode enabled. Skipping job submission.")
+            self._batch_job = "dummy_job"  # Set a placeholder to satisfy checks
+            return self
+        
         logger.info(f"Preparing job '{self._session_id}' with {len(self._requests)} requests...")
         self._setup_cloud_resources()
 
@@ -226,6 +233,10 @@ class Job(Generic[T]):
 
     def wait(self) -> 'Job[T]':
         """Waits for the submitted batch job to complete."""
+        if self.simulation_mode:
+            logger.info("Simulation mode enabled. Skipping wait.")
+            return self
+            
         # --- Placeholder ---
         print("--- WAIT LOGIC NOT YET IMPLEMENTED ---")
         if not self._batch_job:
@@ -238,6 +249,10 @@ class Job(Generic[T]):
 
     def results(self) -> Iterator[BatchResult[T]]:
         """Retrieves the results from the completed job."""
+        if self.simulation_mode:
+            yield from self._generate_dummy_results()
+            return
+            
         # --- Placeholder ---
         print("--- RESULTS LOGIC NOT YET IMPLEMENTED ---")
         if not self._batch_job:
