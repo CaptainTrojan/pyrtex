@@ -67,6 +67,9 @@ class TestJobInitialization:
         mocker.patch('google.cloud.bigquery.Client')
         mocker.patch('google.cloud.aiplatform.init')
         
+        # Clear the environment variable to simulate no project ID available
+        mocker.patch.dict('os.environ', {}, clear=True)
+        
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
                 model="gemini-1.5-flash",
@@ -191,7 +194,7 @@ class TestJobWaiting:
         
         result = job.wait()
         assert result is job
-    def test_wait_without_submission(self, mock_gcp_clients, caplog):
+    def test_wait_without_submission(self, mocker, caplog):
         """Test wait() behavior when no job was submitted."""
         import logging
         caplog.set_level(logging.WARNING)
@@ -1018,3 +1021,166 @@ class TestJobEdgeCases:
         assert str(result.output.path_field) == "dummy_path_field"
         assert isinstance(result.output.custom_field, str)
         assert result.output.custom_field == "dummy_custom_field"
+
+    def test_results_job_not_succeeded(self, mock_gcp_clients):
+        """Test that results() fails when job is not in succeeded state."""
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+        
+        # Mock job state as failed
+        job._batch_job.state = "JOB_STATE_FAILED"
+        
+        with pytest.raises(RuntimeError, match="Cannot get results for a job that has not completed successfully"):
+            list(job.results())
+    
+    def test_results_bigquery_parsing_success(self, mock_gcp_clients):
+        """Test successful BigQuery result parsing."""
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+        
+        # Set up instance map
+        job._instance_map = {"req_00001_12345678": "test1"}
+        
+        # Mock BigQuery results
+        mock_row = Mock()
+        mock_row.id = "req_00001_12345678"
+        mock_row.response = json.dumps({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "functionCall": {
+                            "name": "extract_info",
+                            "args": {"result": "test_output"}
+                        }
+                    }]
+                }
+            }],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 5,
+                "totalTokenCount": 15
+            }
+        })
+        
+        mock_gcp_clients['bigquery'].query.return_value.result.return_value = [mock_row]
+        
+        results = list(job.results())
+        
+        assert len(results) == 1
+        assert results[0].request_key == "test1"
+        assert results[0].output.result == "test_output"
+        assert results[0].usage_metadata["totalTokenCount"] == 15
+    
+    def test_results_bigquery_parsing_no_function_call(self, mock_gcp_clients):
+        """Test BigQuery result parsing when model doesn't return function call."""
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+        
+        # Set up instance map
+        job._instance_map = {"req_00001_12345678": "test1"}
+        
+        # Mock BigQuery results without function call
+        mock_row = Mock()
+        mock_row.id = "req_00001_12345678"
+        mock_row.response = json.dumps({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": "I cannot follow the instructions"
+                    }]
+                }
+            }],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 5,
+                "totalTokenCount": 15
+            }
+        })
+        
+        mock_gcp_clients['bigquery'].query.return_value.result.return_value = [mock_row]
+        
+        results = list(job.results())
+        
+        assert len(results) == 1
+        assert results[0].request_key == "test1"
+        assert results[0].output is None
+        assert "Failed to parse model output" in results[0].error
+    
+    def test_results_bigquery_parsing_validation_error(self, mock_gcp_clients):
+        """Test BigQuery result parsing when validation fails."""
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+        
+        # Set up instance map
+        job._instance_map = {"req_00001_12345678": "test1"}
+        
+        # Mock BigQuery results with invalid data for schema
+        mock_row = Mock()
+        mock_row.id = "req_00001_12345678"
+        mock_row.response = json.dumps({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "functionCall": {
+                            "name": "extract_info",
+                            "args": {"invalid_field": "test_output"}  # wrong field name
+                        }
+                    }]
+                }
+            }],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 5,
+                "totalTokenCount": 15
+            }
+        })
+        
+        mock_gcp_clients['bigquery'].query.return_value.result.return_value = [mock_row]
+        
+        results = list(job.results())
+        
+        assert len(results) == 1
+        assert results[0].request_key == "test1"
+        assert results[0].output is None
+        assert "Validation error" in results[0].error
+    
+    def test_results_bigquery_query_error(self, mock_gcp_clients):
+        """Test BigQuery result parsing when query fails."""
+        job = Job(
+            model="gemini-1.5-flash",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+        
+        # Mock BigQuery query failure
+        mock_gcp_clients['bigquery'].query.side_effect = Exception("BigQuery error")
+        
+        with pytest.raises(RuntimeError, match="Error querying or parsing BigQuery results"):
+            list(job.results())

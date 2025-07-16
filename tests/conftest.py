@@ -56,6 +56,11 @@ def mock_bigquery_client():
     mock_client.create_dataset.return_value = mock_dataset
     mock_client.update_dataset.return_value = None
     
+    # Mock query operations
+    mock_query_job = Mock()
+    mock_query_job.result.return_value = []  # Empty result by default
+    mock_client.query.return_value = mock_query_job
+    
     return mock_client
 
 
@@ -66,6 +71,12 @@ def mock_batch_job():
     mock_job.resource_name = "projects/test-project/locations/us-central1/batchPredictionJobs/test-job"
     mock_job.name = "test-job"
     mock_job.state = "JOB_STATE_SUCCEEDED"
+    
+    # Mock output_info for results method
+    mock_output_info = Mock()
+    mock_output_info.bigquery_output_table = "bq://test-project.test_dataset.test_table"
+    mock_job.output_info = mock_output_info
+    
     return mock_job
 
 
