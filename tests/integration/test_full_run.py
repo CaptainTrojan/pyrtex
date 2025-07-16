@@ -9,6 +9,12 @@ import os
 # Import from the actual package structure
 from pyrtex.client import Job
 from pyrtex.models import BatchResult
+
+# Skip decorator for tests that require project ID
+requires_project_id = pytest.mark.skipif(
+    not os.getenv('GOOGLE_PROJECT_ID'),
+    reason="Requires GOOGLE_PROJECT_ID environment variable to be set"
+)
 # Test schemas
 class SimpleInput(BaseModel):
     word: str
@@ -197,6 +203,7 @@ class TestRealWorldScenarios:
     """Integration tests that use real GCP services and incur costs."""
     
     @pytest.mark.incurs_costs
+    @requires_project_id
     def test_full_run_simple_text(self):
         """
         Full end-to-end test that submits a real job to Vertex AI.
@@ -228,6 +235,7 @@ class TestRealWorldScenarios:
     
     
     @pytest.mark.incurs_costs
+    @requires_project_id
     def test_full_run_with_file(self):
         """Test full run with file input - uses real GCP services."""
         # Create a temporary file
@@ -267,6 +275,7 @@ class TestRealWorldScenarios:
     
     
     @pytest.mark.incurs_costs
+    @requires_project_id
     def test_full_run_batch_processing(self):
         """Test batch processing with multiple requests - uses real GCP services."""
         prompt = '''Process the word "{{ word }}" and return it in the result field.'''
@@ -296,6 +305,7 @@ class TestRealWorldScenarios:
     
     
     @pytest.mark.incurs_costs
+    @requires_project_id
     def test_error_handling_invalid_prompt(self):
         """Test error handling with invalid prompts - uses real GCP services."""
         # This prompt doesn't instruct the model to use function calling
@@ -363,7 +373,7 @@ class TestErrorScenarios:
 class TestRealBigQueryResultParsing:
     """Test the real BigQuery result parsing logic without mocking."""
     
-    def test_bigquery_result_parsing_with_mock_data(self):
+    def test_bigquery_result_parsing_with_mock_data(self, mock_gcp_clients):
         """Test the BigQuery result parsing logic with mock row data."""
         from pyrtex.client import Job
         from pyrtex.models import BatchResult
@@ -433,9 +443,12 @@ class TestRealBigQueryResultParsing:
         mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
         job._batch_job = mock_batch_job
         
+        # Mock the BigQuery client directly
+        mock_bigquery_client = Mock()
         mock_query_job = Mock()
         mock_query_job.result.return_value = mock_rows
-        job._bigquery_client.query.return_value = mock_query_job
+        mock_bigquery_client.query.return_value = mock_query_job
+        job._bigquery_client = mock_bigquery_client
         
         # Test the actual result parsing logic
         results = list(job.results())
@@ -459,7 +472,7 @@ class TestRealBigQueryResultParsing:
         expected_query = "SELECT id, response FROM `project.dataset.table`"
         job._bigquery_client.query.assert_called_once_with(expected_query)
         
-    def test_bigquery_result_parsing_with_model_errors(self):
+    def test_bigquery_result_parsing_with_model_errors(self, mock_gcp_clients):
         """Test BigQuery result parsing when model returns errors."""
         from pyrtex.client import Job
         import json
@@ -500,9 +513,12 @@ class TestRealBigQueryResultParsing:
         mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
         job._batch_job = mock_batch_job
         
+        # Mock the BigQuery client directly
+        mock_bigquery_client = Mock()
         mock_query_job = Mock()
         mock_query_job.result.return_value = mock_rows
-        job._bigquery_client.query.return_value = mock_query_job
+        mock_bigquery_client.query.return_value = mock_query_job
+        job._bigquery_client = mock_bigquery_client
         
         # Test the result parsing with errors
         results = list(job.results())

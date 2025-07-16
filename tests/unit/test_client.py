@@ -194,7 +194,7 @@ class TestJobWaiting:
         
         result = job.wait()
         assert result is job
-    def test_wait_without_submission(self, mocker, caplog):
+    def test_wait_without_submission(self, mock_gcp_clients, caplog):
         """Test wait() behavior when no job was submitted."""
         import logging
         caplog.set_level(logging.WARNING)
