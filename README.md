@@ -1,7 +1,6 @@
 # PyRTex
 
 [![CI](https://github.com/CaptainTrojan/pyrtex/actions/workflows/ci.yml/badge.svg)](https://github.com/CaptainTrojan/pyrtex/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/CaptainTrojan/pyrtex/branch/main/graph/badge.svg)](https://codecov.io/gh/CaptainTrojan/pyrtex)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
 A simple Python library for batch text extraction and processing using Google Cloud Vertex AI.
@@ -19,6 +18,12 @@ PyRTex makes it easy to process multiple documents, images, or text snippets wit
 
 ## 📦 Installation
 
+Install from PyPI (recommended):
+```bash
+pip install pyrtex
+```
+
+Or install from source:
 ```bash
 git clone https://github.com/CaptainTrojan/pyrtex.git
 cd pyrtex
