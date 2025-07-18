@@ -27,6 +27,9 @@ class Job(Generic[T]):
     """
     Manages the configuration, submission, and result retrieval for a
     Vertex AI Batch Prediction Job.
+    
+    Warning: This class is not thread-safe. Do not share Job instances
+    across multiple threads without proper synchronization.
     """
 
     def __init__(
@@ -49,7 +52,6 @@ class Job(Generic[T]):
         self._requests: List[tuple[Hashable, BaseModel]] = []
         self._instance_map: Dict[str, Hashable] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
-        self._results_cache: Optional[List[BatchResult[T]]] = None
         
         self._jinja_env = jinja2.Environment()
         self._initialize_gcp()
@@ -93,7 +95,7 @@ class Job(Generic[T]):
             logger.info(f"Creating GCS bucket '{self.config.gcs_bucket_name}' in {self.config.location}...")
             bucket = self._storage_client.create_bucket(self.config.gcs_bucket_name, location=self.config.location)
         bucket.clear_lifecyle_rules()
-        bucket.add_lifecycle_delete_rule(age=1)
+        bucket.add_lifecycle_delete_rule(age=self.config.gcs_file_retention_days)
         bucket.patch()
         logger.info("GCS bucket is ready.")
         dataset_id_full = f"{self.config.project_id}.{self.config.bq_dataset_id}"
@@ -104,7 +106,7 @@ class Job(Generic[T]):
             dataset_ref = bigquery.Dataset(dataset_id_full)
             dataset_ref.location = self.config.location
             dataset = self._bigquery_client.create_dataset(dataset_ref)
-        dataset.default_table_expiration_ms = 24 * 60 * 60 * 1000
+        dataset.default_table_expiration_ms = self.config.bq_table_retention_days * 24 * 60 * 60 * 1000
         self._bigquery_client.update_dataset(dataset, ["default_table_expiration_ms"])
         logger.info("BigQuery dataset is ready.")
 
@@ -113,6 +115,12 @@ class Job(Generic[T]):
         """Adds a single, structured request to the batch."""
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
+        
+        # Check for duplicate request keys
+        existing_keys = {key for key, _ in self._requests}
+        if request_key in existing_keys:
+            raise ValueError(f"Request key '{request_key}' already exists. Use a unique key for each request.")
+        
         self._requests.append((request_key, data))
         return self
 
@@ -144,7 +152,13 @@ class Job(Generic[T]):
             data_dict = data_model.model_dump()
 
             for field_name, value in data_dict.items():
-                if isinstance(value, (bytes, Path)) or (isinstance(value, str) and Path(value).exists()):
+                # More explicit file detection logic
+                is_file_data = (
+                    isinstance(value, (bytes, Path)) or
+                    (isinstance(value, str) and len(value) > 0 and Path(value).exists() and Path(value).is_file())
+                )
+                
+                if is_file_data:
                     # This is file data. Upload it.
                     if isinstance(value, Path):
                         filename = value.name
@@ -192,8 +206,12 @@ class Job(Generic[T]):
         
         if self.simulation_mode:
             logger.info("Simulation mode enabled. Skipping job submission.")
-            # In simulation mode, we mark the job as submitted but don't create a real batch job
-            self._batch_job = "simulation_mode_marker"
+            # In simulation mode, create a mock job object instead of a string
+            from unittest.mock import Mock
+            self._batch_job = Mock()
+            self._batch_job.state = JobState.JOB_STATE_SUCCEEDED
+            self._batch_job.resource_name = f"simulation://pyrtex-job-{self._session_id}"
+            self._batch_job.name = f"simulation-job-{self._session_id}"
             return self
         
         logger.info(f"Preparing job '{self._session_id}' with {len(self._requests)} requests...")
@@ -279,10 +297,6 @@ class Job(Generic[T]):
             yield from self._generate_dummy_results()
             return
             
-        if self._results_cache is not None:
-            yield from self._results_cache
-            return
-            
         if not self._batch_job:
             raise RuntimeError("Cannot get results for a job that has not been submitted.")
             
@@ -290,7 +304,6 @@ class Job(Generic[T]):
         if self._batch_job.state != JobState.JOB_STATE_SUCCEEDED:
             raise RuntimeError(f"Cannot get results for a job that has not completed successfully. Job state: {self._batch_job.state}")
 
-        self._results_cache = []
         output_table = self._batch_job.output_info.bigquery_output_table.replace("bq://", "")
         logger.info(f"Querying results from BigQuery table: `{output_table}`")
         query = f"SELECT id, response FROM `{output_table}`"
@@ -332,13 +345,10 @@ class Job(Generic[T]):
                 except Exception as e:
                     result_args["error"] = f"Validation error: {e}"
                 
-                self._results_cache.append(BatchResult[T](**result_args))
+                yield BatchResult[T](**result_args)
 
         except Exception as e:
             raise RuntimeError(f"Error querying or parsing BigQuery results: {e}") from e
-
-        logger.info(f"Successfully fetched and parsed {len(self._results_cache)} results.")
-        yield from self._results_cache
 
     def _generate_dummy_results(self) -> Iterator[BatchResult[T]]:
         """Generates dummy results for simulation mode."""

@@ -30,6 +30,10 @@ class InfrastructureConfig(BaseSettings):
     # If not provided, a default dataset will be created/used.
     # e.g., "pyrtex_results"
     bq_dataset_id: Optional[str] = None
+    
+    # Resource retention settings (in days)
+    gcs_file_retention_days: int = 1
+    bq_table_retention_days: int = 1
 
     def __init__(self, **data):
         # Load from environment variables first

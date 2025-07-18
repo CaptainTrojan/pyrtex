@@ -39,7 +39,6 @@ class TestJobInitialization:
         assert job._requests == []
         assert job._instance_map == {}
         assert job._batch_job is None
-        assert job._results_cache is None
     
     def test_job_initialization_with_simulation_mode(self, mock_gcp_clients):
         """Test Job initialization with simulation mode enabled."""
@@ -199,7 +198,8 @@ class TestJobSubmission:
         result = job.submit()
         
         assert result is job
-        assert job._batch_job == "simulation_mode_marker"
+        assert job._batch_job is not None
+        assert hasattr(job._batch_job, 'state')  # Should be a mock object now
     
     def test_submit_dry_run(self, mock_gcp_clients, capsys):
         """Test job submission in dry run mode."""
@@ -325,23 +325,7 @@ class TestJobResults:
         assert result.was_successful
         assert isinstance(result.output, SimpleOutput)
         assert "dummy response" in result.raw_response["note"]
-    
-    def test_results_cached(self, mock_gcp_clients):
-        """Test that results are cached after first retrieval."""
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,
-            prompt_template="Test: {{ word }}"
-        )
-        
-        job._batch_job = Mock()
-        job._results_cache = [BatchResult(request_key="cached", output=SimpleOutput(result="cached"))]
-        
-        results = list(job.results())
-        
-        assert len(results) == 1
-        assert results[0].request_key == "cached"
-    
+
     def test_results_job_not_succeeded(self, mock_gcp_clients):
         """Test results when job hasn't succeeded yet."""
         job = Job(

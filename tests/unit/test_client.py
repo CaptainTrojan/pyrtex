@@ -145,8 +145,24 @@ class TestJobSubmission:
         result = job.submit()
         
         assert result is job
-        assert job._batch_job == "simulation_mode_marker"
-    
+        assert job._batch_job is not None
+        assert hasattr(job._batch_job, 'state')  # Should be a mock object now
+
+    def test_add_request_duplicate_key_validation(self, mock_gcp_clients):
+        """Test that adding duplicate request keys raises an error."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}"
+        )
+        
+        # Add first request
+        job.add_request("duplicate_key", SimpleInput(word="hello"))
+        
+        # Adding same key should raise ValueError
+        with pytest.raises(ValueError, match="Request key 'duplicate_key' already exists"):
+            job.add_request("duplicate_key", SimpleInput(word="world"))
+
     def test_submit_dry_run(self, mock_gcp_clients, capsys):
         """Test that dry run shows payload without submitting."""
         job = Job(
@@ -269,30 +285,6 @@ class TestJobResults:
             list(job.results())
         
         assert "Cannot get results for a job that has not been submitted" in str(exc_info.value)
-    
-    def test_results_uses_cache(self, mock_gcp_clients):
-        """Test that results() uses cache when available."""
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,
-            prompt_template="Test: {{ word }}"
-        )
-        
-        # Set up mock cache
-        from pyrtex.models import BatchResult
-        cached_result = BatchResult(
-            request_key="cached_key",
-            output=SimpleOutput(result="cached"),
-            raw_response={"cached": True}
-        )
-        job._results_cache = [cached_result]
-        job._batch_job = Mock()  # Simulate submitted job
-        
-        results = list(job.results())
-        
-        assert len(results) == 1
-        assert results[0].request_key == "cached_key"
-        assert results[0].output.result == "cached"
 
 
 class TestDummyResultsGeneration:
