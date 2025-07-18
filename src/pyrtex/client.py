@@ -92,7 +92,7 @@ class Job(Generic[T]):
         except NotFound:
             logger.info(f"Creating GCS bucket '{self.config.gcs_bucket_name}' in {self.config.location}...")
             bucket = self._storage_client.create_bucket(self.config.gcs_bucket_name, location=self.config.location)
-        bucket.clear_lifecycle_rules()
+        bucket.clear_lifecyle_rules()
         bucket.add_lifecycle_delete_rule(age=1)
         bucket.patch()
         logger.info("GCS bucket is ready.")

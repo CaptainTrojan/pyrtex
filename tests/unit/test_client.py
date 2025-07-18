@@ -365,7 +365,7 @@ class TestCloudResourceSetup:
         job._setup_cloud_resources()
         
         # Verify bucket lifecycle rules were set
-        mock_bucket.clear_lifecycle_rules.assert_called_once()
+        mock_bucket.clear_lifecyle_rules.assert_called_once()
         mock_bucket.add_lifecycle_delete_rule.assert_called_once_with(age=1)
         mock_bucket.patch.assert_called_once()
         
@@ -399,7 +399,7 @@ class TestCloudResourceSetup:
         )
         
         # Verify lifecycle rules were set
-        mock_bucket.clear_lifecycle_rules.assert_called_once()
+        mock_bucket.clear_lifecyle_rules.assert_called_once()
         mock_bucket.add_lifecycle_delete_rule.assert_called_once_with(age=1)
         mock_bucket.patch.assert_called_once()
     
