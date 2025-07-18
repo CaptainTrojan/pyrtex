@@ -14,6 +14,7 @@ import google.cloud.aiplatform as aiplatform
 import google.cloud.storage as storage
 import google.cloud.bigquery as bigquery
 from google.api_core.exceptions import NotFound
+from google.cloud.aiplatform_v1.types import JobState
 
 from .config import InfrastructureConfig, GenerationConfig
 from .models import BatchResult, T
@@ -91,7 +92,7 @@ class Job(Generic[T]):
         except NotFound:
             logger.info(f"Creating GCS bucket '{self.config.gcs_bucket_name}' in {self.config.location}...")
             bucket = self._storage_client.create_bucket(self.config.gcs_bucket_name, location=self.config.location)
-        bucket.clear_lifecyle_rules()
+        bucket.clear_lifecycle_rules()
         bucket.add_lifecycle_delete_rule(age=1)
         bucket.patch()
         logger.info("GCS bucket is ready.")
@@ -217,7 +218,7 @@ class Job(Generic[T]):
 
         # Submit the job
         job_display_name = f"pyrtex-job-{self._session_id}"
-        bq_destination_prefix = f"bq://{self.config.project_id}.{self.config.bq_dataset_id}"
+        bq_destination_prefix = f"bq://{self.config.project_id}.{self.config.bq_dataset_id}.batch_predictions_{self._session_id}"
         
         model_resource_name = self.model
         if not "/" in model_resource_name:
@@ -249,9 +250,28 @@ class Job(Generic[T]):
             return self
             
         logger.info(f"Waiting for job to complete...")
-        self._batch_job.wait()
+        self._batch_job.wait_for_completion()
         logger.info("Job completed!")
         return self
+
+    def _process_usage_metadata(self, usage_metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Process usage metadata to extract token counts from complex structures."""
+        if not usage_metadata:
+            return usage_metadata
+            
+        processed = usage_metadata.copy()
+        
+        # Extract token counts from candidatesTokensDetails
+        if "candidatesTokensDetails" in processed and isinstance(processed["candidatesTokensDetails"], list):
+            if len(processed["candidatesTokensDetails"]) > 0 and "tokenCount" in processed["candidatesTokensDetails"][0]:
+                processed["candidatesTokensDetails"] = processed["candidatesTokensDetails"][0]["tokenCount"]
+        
+        # Extract token counts from promptTokensDetails
+        if "promptTokensDetails" in processed and isinstance(processed["promptTokensDetails"], list):
+            if len(processed["promptTokensDetails"]) > 0 and "tokenCount" in processed["promptTokensDetails"][0]:
+                processed["promptTokensDetails"] = processed["promptTokensDetails"][0]["tokenCount"]
+        
+        return processed
 
     def results(self) -> Iterator[BatchResult[T]]:
         """Retrieves results from the completed job, parsing them into the output schema."""
@@ -267,7 +287,7 @@ class Job(Generic[T]):
             raise RuntimeError("Cannot get results for a job that has not been submitted.")
             
         # Check if job is completed successfully
-        if self._batch_job.state != "JOB_STATE_SUCCEEDED":
+        if self._batch_job.state != JobState.JOB_STATE_SUCCEEDED:
             raise RuntimeError(f"Cannot get results for a job that has not completed successfully. Job state: {self._batch_job.state}")
 
         self._results_cache = []
@@ -280,12 +300,21 @@ class Job(Generic[T]):
             for row in query_job.result():
                 instance_id = row.id
                 request_key = self._instance_map.get(instance_id)
-                response_dict = json.loads(row.response)
+                
+                # Check if response is already a dict or needs to be parsed
+                if isinstance(row.response, dict):
+                    response_dict = row.response
+                else:
+                    response_dict = json.loads(row.response)
+
+                # Process usage metadata to extract token counts
+                usage_metadata = response_dict.get("usageMetadata")
+                processed_usage_metadata = self._process_usage_metadata(usage_metadata)
                 
                 result_args = {
                     "request_key": request_key,
                     "raw_response": response_dict,
-                    "usage_metadata": response_dict.get("usageMetadata"),
+                    "usage_metadata": processed_usage_metadata,
                 }
                 
                 try:

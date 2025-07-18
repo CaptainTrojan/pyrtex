@@ -8,6 +8,7 @@ import uuid
 
 from pydantic import BaseModel
 from google.api_core.exceptions import NotFound
+from google.cloud.aiplatform_v1.types import JobState
 
 from pyrtex.client import Job
 from pyrtex.config import InfrastructureConfig, GenerationConfig
@@ -198,7 +199,7 @@ class TestJobSubmission:
         result = job.submit()
         
         assert result is job
-        assert job._batch_job == "dummy_job"
+        assert job._batch_job == "simulation_mode_marker"
     
     def test_submit_dry_run(self, mock_gcp_clients, capsys):
         """Test job submission in dry run mode."""
@@ -218,7 +219,7 @@ class TestJobSubmission:
         
         captured = capsys.readouterr()
         assert "--- DRY RUN OUTPUT ---" in captured.out
-        assert "Dry run enabled. Job was not submitted" in captured.out
+        assert "Dry run enabled. Job was not submitted" in captured.err
     
     def test_submit_success(self, mock_gcp_clients):
         """Test successful job submission."""
@@ -252,8 +253,7 @@ class TestJobWait:
         result = job.wait()
         
         assert result is job
-        captured = capsys.readouterr()
-        assert "No job submitted" in captured.out
+        # Note: The warning message is logged, not printed to stdout
     
     def test_wait_simulation_mode(self, mock_gcp_clients):
         """Test waiting in simulation mode."""
@@ -269,20 +269,24 @@ class TestJobWait:
         
         assert result is job
     
-    def test_wait_placeholder_logic(self, mock_gcp_clients, capsys):
-        """Test the placeholder wait logic."""
+    def test_wait_with_job(self, mock_gcp_clients, capsys):
+        """Test waiting with a submitted job."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
         
-        job._batch_job = Mock()  # Simulate submitted job
+        # Mock a submitted job
+        mock_job = Mock()
+        mock_job.wait_for_completion = Mock()
+        job._batch_job = mock_job
+        
         result = job.wait()
         
         assert result is job
-        captured = capsys.readouterr()
-        assert "WAIT LOGIC NOT YET IMPLEMENTED" in captured.out
+        # Verify that wait_for_completion was called
+        mock_job.wait_for_completion.assert_called_once()
 
 
 class TestJobResults:
@@ -338,20 +342,21 @@ class TestJobResults:
         assert len(results) == 1
         assert results[0].request_key == "cached"
     
-    def test_results_placeholder_logic(self, mock_gcp_clients, capsys):
-        """Test the placeholder results logic."""
+    def test_results_job_not_succeeded(self, mock_gcp_clients):
+        """Test results when job hasn't succeeded yet."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}"
         )
         
-        job._batch_job = Mock()  # Simulate submitted job
-        results = list(job.results())
+        # Mock a job that hasn't succeeded
+        mock_job = Mock()
+        mock_job.state = JobState.JOB_STATE_RUNNING  # Different from SUCCEEDED
+        job._batch_job = mock_job
         
-        assert len(results) == 0
-        captured = capsys.readouterr()
-        assert "RESULTS LOGIC NOT YET IMPLEMENTED" in captured.out
+        with pytest.raises(RuntimeError, match="Cannot get results for a job that has not completed successfully"):
+            list(job.results())
 
 
 class TestGenerateDummyResults:

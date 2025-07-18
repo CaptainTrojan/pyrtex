@@ -22,7 +22,7 @@ class BatchResult(BaseModel, Generic[T]):
     raw_response: Optional[Dict[str, Any]] = None
     
     # Usage metadata from Vertex AI.
-    usage_metadata: Optional[Dict[str, int]] = None
+    usage_metadata: Optional[Dict[str, Any]] = None
     
     # A string describing any error that occurred for this specific request.
     error: Optional[str] = None

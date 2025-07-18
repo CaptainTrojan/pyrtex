@@ -2,10 +2,13 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock
+from typing import Union
+from pathlib import Path
 from pydantic import BaseModel
 import google.cloud.aiplatform as aiplatform
 import google.cloud.storage as storage
 import google.cloud.bigquery as bigquery
+from google.cloud.aiplatform_v1.types import JobState
 
 
 # Test schemas for reuse across tests
@@ -18,7 +21,10 @@ class SimpleOutput(BaseModel):
 
 
 class FileInput(BaseModel):
-    image: str
+    text: str = "default text"  # Make text optional with default
+    file_path: Union[str, Path, bytes, None] = None
+    file_content: Union[bytes, None] = None
+    image: Union[str, Path, bytes, None] = None  # Support legacy tests
 
 
 class ComplexOutput(BaseModel):
@@ -70,7 +76,7 @@ def mock_batch_job():
     mock_job = Mock(spec=aiplatform.BatchPredictionJob)
     mock_job.resource_name = "projects/test-project/locations/us-central1/batchPredictionJobs/test-job"
     mock_job.name = "test-job"
-    mock_job.state = "JOB_STATE_SUCCEEDED"
+    mock_job.state = JobState.JOB_STATE_SUCCEEDED
     
     # Mock output_info for results method
     mock_output_info = Mock()
