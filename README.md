@@ -1,182 +1,178 @@
 # PyRTex
 
-A Python library for batch text extraction and processing using Google Cloud Vertex AI.
+[![CI](https://github.com/CaptainTrojan/pyrtex/actions/workflows/ci.yml/badge.svg)](https://github.com/CaptainTrojan/pyrtex/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/CaptainTrojan/pyrtex/branch/main/graph/badge.svg)](https://codecov.io/gh/CaptainTrojan/pyrtex)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-PyRTex simplifies the process of sending multiple text processing requests to Gemini models and collecting structured results. It provides type-safe output parsing with Pydantic models, efficient batch processing, and seamless GCP integration.
+A simple Python library for batch text extraction and processing using Google Cloud Vertex AI.
 
-## Features
+PyRTex makes it easy to process multiple documents, images, or text snippets with Gemini models and get back structured, type-safe results using Pydantic models.
 
-- **Batch Processing**: Process multiple requests efficiently with Vertex AI
-- **Structured Output**: Use Pydantic models for type-safe results
-- **Template System**: Jinja2 templates for flexible prompt engineering
-- **GCP Integration**: Seamless integration with Vertex AI and BigQuery
-- **Error Handling**: Robust error handling and validation
-- **Simulation Mode**: Test without incurring GCP costs
+## ✨ Features
 
-## Installation
+- **🚀 Simple API**: Just 3 steps - configure, submit, get results
+- **📦 Batch Processing**: Process multiple inputs efficiently  
+- **🔒 Type Safety**: Pydantic models for structured output
+- **🎨 Flexible Templates**: Jinja2 templates for prompt engineering
+- **☁️ GCP Integration**: Seamless Vertex AI and BigQuery integration
+- **🧪 Testing Mode**: Simulate without GCP costs
+
+## 📦 Installation
 
 ```bash
 git clone https://github.com/CaptainTrojan/pyrtex.git
 cd pyrtex
+pip install -e .
+```
+
+For development:
+```bash
 pip install -e .[dev]
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ```python
 from pydantic import BaseModel
 from pyrtex import Job
 
-# Define input and output schemas
+# Define your data structures
 class TextInput(BaseModel):
     content: str
 
-class TextAnalysis(BaseModel):
+class Analysis(BaseModel):
     summary: str
     sentiment: str
     key_points: list[str]
 
 # Create a job
-job = Job[TextAnalysis](
+job = Job[Analysis](
     model="gemini-2.0-flash-lite-001",
-    output_schema=TextAnalysis,
+    output_schema=Analysis,
     prompt_template="Analyze this text: {{ content }}",
-    simulation_mode=True  # For testing without GCP costs
+    simulation_mode=True  # Set to False for real processing
 )
 
-# Add requests (must be Pydantic model instances)
+# Add your data
 job.add_request("doc1", TextInput(content="Your text here"))
+job.add_request("doc2", TextInput(content="Another document"))
 
-# Submit job, wait for completion, then get results
+# Process and get results
 for result in job.submit().wait().results():
     if result.was_successful:
         print(f"Summary: {result.output.summary}")
+        print(f"Sentiment: {result.output.sentiment}")
     else:
         print(f"Error: {result.error}")
 ```
 
-## Workflow
+## 📋 Core Workflow
 
-PyRTex follows a simple three-step workflow:
+PyRTex uses a simple 3-step workflow:
 
-1. **Configure & Add Requests**: Set up your job and add data to process
-2. **Submit & Wait**: Submit the job to Vertex AI and wait for completion  
-3. **Retrieve Results**: Get structured results with error handling
-
+### 1. Configure & Add Data
 ```python
-# Step 1: Configure and add requests
-job = Job[YourOutputSchema](model="gemini-2.0-flash-lite-001", ...)
-job.add_request("key1", YourInputModel(data="value1"))
-job.add_request("key2", YourInputModel(data="value2"))
+job = Job[YourSchema](model="gemini-2.0-flash-lite-001", ...)
+job.add_request("key1", YourModel(data="value1"))
+job.add_request("key2", YourModel(data="value2"))
+```
 
-# Step 2: Submit and wait (can be chained)
-job.submit().wait()
+### 2. Submit & Wait  
+```python
+job.submit().wait()  # Can be chained
+```
 
-# Step 3: Get results
+### 3. Get Results
+```python
 for result in job.results():
     if result.was_successful:
-        # Process result.output
+        # Use result.output (typed!)
     else:
         # Handle result.error
 ```
 
-**Important**: 
-- `add_request()` requires Pydantic model instances, not dictionaries
-- You must call `submit()` and `wait()` before calling `results()`  
-- The methods can be chained for convenience: `job.submit().wait().results()`
+## ⚙️ Configuration
 
-## Configuration
-
-For production use, set your GCP project ID:
+For production use, set your GCP project:
 
 ```bash
 export GOOGLE_PROJECT_ID="your-project-id"
 ```
 
-Then set `simulation_mode=False` to use real Vertex AI processing.
+Then use `simulation_mode=False` for real processing.
 
-## Examples
+## 📚 Examples
 
-The `examples/` directory contains complete working examples that demonstrate PDF and image processing:
-
-### Running Examples
-
-Generate sample files and run examples:
+The `examples/` directory contains complete working examples:
 
 ```bash
 cd examples
 
-# Generate sample PDF and image files
+# Generate sample files
 python generate_sample_data.py
 
-# Example 1: Extract contact info from business card image
+# Extract contact info from business cards
 python 01_simple_text_extraction.py
 
-# Example 2: Parse products from catalog image  
+# Parse product catalogs  
 python 02_pdf_product_parsing.py
 
-# Example 3: Extract structured data from PDF invoice
+# Extract invoice data from PDFs
 python 03_image_description.py
 ```
 
 ### Example Use Cases
 
-- **Business Card Processing**: Extract contact information from business card images
-- **Product Catalog Analysis**: Parse product details, pricing, and inventory from catalog images
-- **Invoice Data Extraction**: Extract structured financial data from PDF invoices
-- **Document Processing**: Handle various file formats (PDF, PNG, JPEG) with multimodal AI
-- **Batch Processing**: Process multiple documents efficiently
+- **📇 Business Cards**: Extract contact information
+- **📄 Documents**: Process PDFs, images (PNG, JPEG)  
+- **🛍️ Product Catalogs**: Parse pricing and inventory
+- **🧾 Invoices**: Extract structured financial data
+- **📊 Batch Processing**: Handle multiple files efficiently
 
-Each example includes sample data files and demonstrates different aspects of PyRTex functionality.
-
-## Documentation
-
-Generate and view the documentation:
-
-```bash
-# Install documentation dependencies
-pip install -e .[dev]
-
-# Build docs
-cd docs
-make html
-
-# View docs
-open _build/html/index.html
-```
-
-## Development
+## 🧪 Development
 
 ### Running Tests
 
 ```bash
-# Run all mocked tests (default)
+# All tests (mocked, safe)
 ./test_runner.sh
 
-# Run unit tests only
+# Specific test types
 ./test_runner.sh --unit
-
-# Run integration tests (mocked)
 ./test_runner.sh --integration
-
-# Run linting
 ./test_runner.sh --flake
 
-# Run linting with auto-fix
-./test_runner.sh --flake-fix
-
-# For real GCP tests (incurs costs)
+# Real GCP tests (costs money!)
 ./test_runner.sh --real --project-id your-project-id
+```
+
+Windows users:
+```cmd
+test_runner.bat --unit
+test_runner.bat --flake
 ```
 
 ### Code Quality
 
-This project uses:
-- **flake8** for linting
-- **black** for code formatting  
-- **isort** for import sorting
-- **pytest** for testing with 100% coverage
+- **flake8**: Linting
+- **black**: Code formatting  
+- **isort**: Import sorting
+- **pytest**: Testing with coverage
 
-## License
+## 🤝 Contributing
 
-MIT License - see [LICENSE](LICENSE) file for details.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `./test_runner.sh`
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🆘 Support
+
+- **Issues**: [GitHub Issues](https://github.com/CaptainTrojan/pyrtex/issues)
+- **Examples**: Check the `examples/` directory
+- **Testing**: Use `simulation_mode=True` for development
