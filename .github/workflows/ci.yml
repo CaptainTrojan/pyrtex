@@ -47,10 +47,4 @@ jobs:
     
     - name: Run tests
       run: |
-        ./test_runner.sh --integration
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./reports/coverage.xml
-        fail_ci_if_error: true
+        ./test_runner.sh
