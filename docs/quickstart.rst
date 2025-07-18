@@ -29,6 +29,8 @@ Basic Usage
 
     from pyrtex import Job
 
+    # The generic type parameter [TextAnalysis] provides static type checking,
+    # while output_schema=TextAnalysis is used at runtime for validation
     job = Job[TextAnalysis](
         model="gemini-2.0-flash-lite-001",
         output_schema=TextAnalysis,

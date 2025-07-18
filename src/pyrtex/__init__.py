@@ -8,14 +8,14 @@ for text extraction, document processing, and structured data extraction tasks.
 """
 
 from .client import Job
-from .config import InfrastructureConfig, GenerationConfig  
-from .models import BatchResult, T
+from .config import GenerationConfig, InfrastructureConfig
 from .exceptions import ConfigurationError, JobFailedError
+from .models import BatchResult, T
 
 __version__ = "0.1.0"
 __all__ = [
     "Job",
-    "InfrastructureConfig", 
+    "InfrastructureConfig",
     "GenerationConfig",
     "BatchResult",
     "T",

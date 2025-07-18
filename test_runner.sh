@@ -76,7 +76,7 @@ run_tests() {
         pytest tests/integration/ -m "incurs_costs" $pytest_verbose --cov=src --cov-report=xml:reports/coverage.xml
     elif [[ "$test_type" == "unit" ]]; then
         print_header "Running Unit Tests Only"
-        pytest tests/unit/ $pytest_verbose --cov=src --cov-report=xml:reports/coverage.xml
+        pytest tests/unit/ $pytest_verbose --cov=src --cov-report=xml:reports/coverage.xml --cov-fail-under=100
     elif [[ "$test_type" == "integration" ]]; then
         print_header "Running Integration Tests (Mocked)"
         pytest tests/integration/ -m "not incurs_costs" $pytest_verbose --cov=src --cov-report=xml:reports/coverage.xml

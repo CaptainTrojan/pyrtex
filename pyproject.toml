@@ -70,7 +70,6 @@ addopts = [
     "--cov=src/pyrtex",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=95",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
