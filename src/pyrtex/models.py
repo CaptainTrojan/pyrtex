@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Generic, Hashable, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # This defines a generic type that can be any Pydantic model.
 # When a user provides their `ProductInfo` model, T becomes `ProductInfo`.

@@ -14,10 +14,10 @@ import google.cloud.storage as storage
 import jinja2
 from google.api_core.exceptions import NotFound
 from google.cloud.aiplatform_v1.types import JobState
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from .config import GenerationConfig, InfrastructureConfig
-from .exceptions import ConfigurationError, JobFailedError
+from .exceptions import ConfigurationError
 from .models import BatchResult, T
 
 logger = logging.getLogger(__name__)
@@ -77,14 +77,17 @@ class Job(Generic[T]):
                 project=self.config.project_id, location=self.config.location
             )
             self._resolve_infra_config()
+            project_id = self.config.project_id
+            location = self.config.location
             logger.info(
-                f"Pyrtex initialized for project '{self.config.project_id}' in '{self.config.location}'."
+                f"Pyrtex initialized for project '{project_id}' in '{location}'."
             )
         except Exception as e:
+            msg1 = "Failed to initialize GCP clients. "
+            msg2 = "Please ensure you are authenticated. "
+            msg3 = "Run 'gcloud auth application-default login' in your terminal. "
             raise ConfigurationError(
-                "Failed to initialize GCP clients. Please ensure you are authenticated. "
-                "Run 'gcloud auth application-default login' in your terminal. "
-                f"Original error: {e}"
+                msg1 + msg2 + msg3 + f"Original error: {e}"
             ) from e
 
     def _resolve_infra_config(self):
@@ -92,29 +95,37 @@ class Job(Generic[T]):
         if not self.config.project_id:
             self.config.project_id = self._storage_client.project
             if not self.config.project_id:
-                raise ConfigurationError(
-                    "Could not automatically discover GCP Project ID. "
-                    "Please set the GOOGLE_PROJECT_ID environment variable or pass it in InfrastructureConfig."
-                )
+                msg1 = "Could not automatically discover GCP Project ID. "
+                msg2 = "Please set the GOOGLE_PROJECT_ID environment variable "
+                msg3 = "or pass it in InfrastructureConfig."
+                raise ConfigurationError(msg1 + msg2 + msg3)
         if not self.config.gcs_bucket_name:
-            self.config.gcs_bucket_name = f"pyrtex-assets-{self.config.project_id}"
+            project_id = self.config.project_id
+            self.config.gcs_bucket_name = f"pyrtex-assets-{project_id}"
+            bucket_name = self.config.gcs_bucket_name
             logger.info(
-                f"GCS bucket not specified, using default: '{self.config.gcs_bucket_name}'"
+                f"GCS bucket not specified, using default: '{bucket_name}'"
             )
         if not self.config.bq_dataset_id:
             self.config.bq_dataset_id = "pyrtex_results"
+            dataset_id = self.config.bq_dataset_id
             logger.info(
-                f"BigQuery dataset not specified, using default: '{self.config.bq_dataset_id}'"
+                f"BigQuery dataset not specified, using default: '{dataset_id}'"
             )
 
     def _setup_cloud_resources(self):
-        """Ensures the GCS bucket and BigQuery dataset exist and are configured correctly."""
+        """
+        Ensures the GCS bucket and BigQuery dataset exist and are configured
+        correctly.
+        """
         logger.info("Verifying and setting up cloud resources...")
         try:
             bucket = self._storage_client.get_bucket(self.config.gcs_bucket_name)
         except NotFound:
+            bucket_name = self.config.gcs_bucket_name
+            location = self.config.location
             logger.info(
-                f"Creating GCS bucket '{self.config.gcs_bucket_name}' in {self.config.location}..."
+                f"Creating GCS bucket '{bucket_name}' in {location}..."
             )
             bucket = self._storage_client.create_bucket(
                 self.config.gcs_bucket_name, location=self.config.location
@@ -127,8 +138,9 @@ class Job(Generic[T]):
         try:
             dataset = self._bigquery_client.get_dataset(self.config.bq_dataset_id)
         except NotFound:
+            location = self.config.location
             logger.info(
-                f"Creating BigQuery dataset '{dataset_id_full}' in {self.config.location}..."
+                f"Creating BigQuery dataset '{dataset_id_full}' in {location}..."
             )
             dataset_ref = bigquery.Dataset(dataset_id_full)
             dataset_ref.location = self.config.location
@@ -147,9 +159,9 @@ class Job(Generic[T]):
         # Check for duplicate request keys
         existing_keys = {key for key, _ in self._requests}
         if request_key in existing_keys:
-            raise ValueError(
-                f"Request key '{request_key}' already exists. Use a unique key for each request."
-            )
+            msg = f"Request key '{request_key}' already exists. "
+            msg += "Use a unique key for each request."
+            raise ValueError(msg)
 
         self._requests.append((request_key, data))
         return self
@@ -228,8 +240,13 @@ class Job(Generic[T]):
                             "function_declarations": [
                                 {
                                     "name": "extract_info",
-                                    "description": "Extracts structured information based on the schema.",
-                                    "parameters": self.output_schema.model_json_schema(),
+                                    "description": (
+                                        "Extracts structured information "
+                                        "based on the schema."
+                                    ),
+                                    "parameters": (
+                                        self.output_schema.model_json_schema()
+                                    ),
                                 }
                             ]
                         }
@@ -285,10 +302,15 @@ class Job(Generic[T]):
 
         # Submit the job
         job_display_name = f"pyrtex-job-{self._session_id}"
-        bq_destination_prefix = f"bq://{self.config.project_id}.{self.config.bq_dataset_id}.batch_predictions_{self._session_id}"
+        project_id = self.config.project_id
+        dataset_id = self.config.bq_dataset_id
+        session_id = self._session_id
+        bq_destination_prefix = (
+            f"bq://{project_id}.{dataset_id}.batch_predictions_{session_id}"
+        )
 
         model_resource_name = self.model
-        if not "/" in model_resource_name:
+        if "/" not in model_resource_name:
             model_resource_name = f"publishers/google/models/{self.model}"
 
         self._batch_job = aiplatform.BatchPredictionJob.submit(
@@ -303,9 +325,14 @@ class Job(Generic[T]):
         )
 
         logger.info(f"Batch job submitted: {self._batch_job.resource_name}")
-        logger.info(
-            f"View in console: https://console.cloud.google.com/vertex-ai/locations/{self.config.location}/batch-predictions/{self._batch_job.name}?project={self.config.project_id}"
+        location = self.config.location
+        batch_job_name = self._batch_job.name
+        project_id = self.config.project_id
+        console_url = (
+            f"https://console.cloud.google.com/vertex-ai/locations/{location}/"
+            f"batch-predictions/{batch_job_name}?project={project_id}"
         )
+        logger.info(f"View in console: {console_url}")
         return self
 
     def wait(self) -> "Job[T]":
@@ -318,7 +345,7 @@ class Job(Generic[T]):
             logger.warning("No job submitted, nothing to wait for.")
             return self
 
-        logger.info(f"Waiting for job to complete...")
+        logger.info("Waiting for job to complete...")
         self._batch_job.wait_for_completion()
         logger.info("Job completed!")
         return self
@@ -359,7 +386,10 @@ class Job(Generic[T]):
         return processed
 
     def results(self) -> Iterator[BatchResult[T]]:
-        """Retrieves results from the completed job, parsing them into the output schema."""
+        """
+        Retrieves results from the completed job, parsing them into the
+        output schema.
+        """
         if self.simulation_mode:
             yield from self._generate_dummy_results()
             return
@@ -371,9 +401,12 @@ class Job(Generic[T]):
 
         # Check if job is completed successfully
         if self._batch_job.state != JobState.JOB_STATE_SUCCEEDED:
-            raise RuntimeError(
-                f"Cannot get results for a job that has not completed successfully. Job state: {self._batch_job.state}"
+            job_state = self._batch_job.state
+            msg = (
+                "Cannot get results for a job that has not completed successfully. "
+                f"Job state: {job_state}"
             )
+            raise RuntimeError(msg)
 
         output_table = self._batch_job.output_info.bigquery_output_table.replace(
             "bq://", ""
@@ -404,7 +437,8 @@ class Job(Generic[T]):
                 }
 
                 try:
-                    # Extract the function call arguments which contain the structured data
+                    # Extract the function call arguments which contain
+                    # the structured data
                     part = response_dict["candidates"][0]["content"]["parts"][0]
                     if "functionCall" not in part:
                         raise KeyError("Model did not return a function call.")

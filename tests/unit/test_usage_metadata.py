@@ -88,7 +88,8 @@ class TestUsageMetadataProcessing:
 
         result = job._process_usage_metadata(usage_metadata)
 
-        # Should process candidatesTokensDetails but not modify empty promptTokensDetails
+        # Should process candidatesTokensDetails but not modify empty
+        # promptTokensDetails
         assert result["candidatesTokensDetails"] == 5
         assert result["promptTokensDetails"] == []
         assert result["totalTokenCount"] == 15

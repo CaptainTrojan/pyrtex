@@ -43,7 +43,7 @@ def main():
         output_schema=ContactInfo,
         prompt_template="""
         Extract all contact information from this business card image.
-                
+
         Please extract exactly what you see on the card:
         - Person's name and title
         - Company name
@@ -52,13 +52,11 @@ def main():
         - Website
         - Physical address
         - List of services offered
-        
+
         Be precise and extract exactly what appears on the business card.
         Return empty strings for any fields not visible on the card.
         """,
-    )
-
-    # Define business cards to process
+    )    # Define business cards to process
     data_dir = Path(__file__).parent / "data"
     business_cards = [
         {
@@ -127,7 +125,7 @@ def main():
 
         if result.was_successful:
             contact = result.output
-            print(f"✅ Extraction successful!")
+            print("✅ Extraction successful!")
             print(f"Name: {contact.name}")
             print(f"Title: {contact.title}")
             print(f"Company: {contact.company}")
@@ -135,9 +133,10 @@ def main():
             print(f"Phone: {contact.phone}")
             print(f"Website: {contact.website}")
             print(f"Address: {contact.address}")
-            print(
-                f"Services: {', '.join(contact.services) if contact.services else 'None listed'}"
+            services_text = (
+                ', '.join(contact.services) if contact.services else 'None listed'
             )
+            print(f"Services: {services_text}")
 
             # Track token usage
             if hasattr(result, "usage_metadata") and result.usage_metadata:
@@ -157,14 +156,12 @@ def main():
     print(f"Total tokens used: {total_tokens}")
     print(f"Average tokens per card: {total_tokens / len(business_cards):.0f}")
 
-    print(f"\n🎯 Key Insight: Despite different designs, layouts, and color schemes,")
-    print(
-        f"   PyRTex successfully extracted consistent structured data from all cards!"
-    )
+    print("\n🎯 Key Insight: Despite different designs, layouts, and color schemes,")
+    print("   PyRTex successfully extracted consistent structured data from all cards!")
 
-    print(f"\n💡 Important Note: This example demonstrates proper result handling.")
-    print(f"   Results from BigQuery may not preserve submission order, so we use")
-    print(f"   request keys to map results back to the correct input files.")
+    print("\n💡 Important Note: This example demonstrates proper result handling.")
+    print("   Results from BigQuery may not preserve submission order, so we use")
+    print("   request keys to map results back to the correct input files.")
 
 
 if __name__ == "__main__":

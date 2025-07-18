@@ -6,7 +6,6 @@ This example demonstrates extracting structured data from PDF invoice documents.
 It parses invoice information and organizes it into a structured format.
 """
 
-from datetime import date
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -61,8 +60,9 @@ def main():
         model="gemini-2.0-flash-lite-001",
         output_schema=InvoiceData,
         prompt_template="""
-        Extract {{ detail_level }} information from this PDF invoice with focus on {{ parsing_focus }}:
-        
+        Extract {{ detail_level }} information from this PDF invoice with focus
+        on {{ parsing_focus }}:
+
         Please parse all the invoice details including:
         - Invoice number, date, due date, and customer ID
         - Company information (name, address, phone)
@@ -70,7 +70,7 @@ def main():
         - All line items with descriptions, quantities, unit prices, and totals
         - Financial totals (subtotal, tax rate, tax amount, total)
         - Payment terms
-        
+
         Convert all monetary amounts to float values (remove $ signs and commas).
         Be precise and extract exactly what appears on the invoice.
         """,
@@ -109,55 +109,58 @@ def main():
         print(f"\nProcessing result for request key: '{result.request_key}'")
         if result.was_successful:
             invoice = result.output
-            print(f"\n--- Invoice Data Extraction ---")
+            print("\n--- Invoice Data Extraction ---")
             print(f"Invoice: {invoice.invoice_number}")
             print(f"Date: {invoice.date}")
             print(f"Due Date: {invoice.due_date}")
             print(f"Customer ID: {invoice.customer_id}")
 
-            print(f"\nCompany:")
+            print("\nCompany:")
             print(f"  Name: {invoice.company.name}")
             print(f"  Address: {invoice.company.address}")
             print(f"  Phone: {invoice.company.phone}")
 
-            print(f"\nCustomer:")
+            print("\nCustomer:")
             print(f"  Name: {invoice.customer.name}")
             print(f"  Address: {invoice.customer.address}")
 
-            print(f"\nItems:")
+            print("\nItems:")
             for item in invoice.items:
                 print(f"  • {item.description}")
-                print(
-                    f"    Qty: {item.quantity} × ${item.unit_price:.2f} = ${item.total:.2f}"
-                )
+                qty_price_str = f"    Qty: {item.quantity} × "
+                total_str = f"${item.unit_price:.2f} = ${item.total:.2f}"
+                print(qty_price_str + total_str)
 
-            print(f"\nFinancials:")
+            print("\nFinancials:")
             print(f"  Subtotal: ${invoice.subtotal:.2f}")
             print(f"  Tax ({invoice.tax_rate:.2f}%): ${invoice.tax_amount:.2f}")
             print(f"  Total: ${invoice.total:.2f}")
             print(f"  Payment Terms: {invoice.payment_terms}")
 
             # Calculate some additional insights
-            print(f"\n--- Invoice Analysis ---")
+            print("\n--- Invoice Analysis ---")
             print(f"Number of line items: {len(invoice.items)}")
-            print(
-                f"Average item value: ${sum(item.total for item in invoice.items) / len(invoice.items):.2f}"
-            )
-            print(
-                f"Effective tax rate: {(invoice.tax_amount / invoice.subtotal * 100):.2f}%"
-            )
+            avg_item_val = sum(item.total for item in invoice.items)
+            avg_item_val /= len(invoice.items)
+            print(f"Average item value: ${avg_item_val:.2f}")
+            eff_tax_rate = (invoice.tax_amount / invoice.subtotal * 100)
+            print(f"Effective tax rate: {eff_tax_rate:.2f}%")
         else:
             print(f"Error processing '{result.request_key}': {result.error}")
 
-    print(f"\n--- Processing Stats ---")
+    print("\n--- Processing Stats ---")
     print(f"Input: PDF invoice ({pdf_path.name})")
     print(f"File size: {pdf_path.stat().st_size:,} bytes")
-    print(
-        f"Tokens used: {results[0].usage_metadata.get('totalTokenCount', 'N/A') if results else 'N/A'}"
+    if results:
+        token_count = results[0].usage_metadata.get('totalTokenCount', 'N/A')
+    else:
+        token_count = 'N/A'
+    print(f"Tokens used: {token_count}")
+    note_msg = (
+        "💡 Note: Always use request keys to map results back to inputs "
+        "when processing multiple items."
     )
-    print(
-        f"💡 Note: Always use request keys to map results back to inputs when processing multiple items."
-    )
+    print(note_msg)
 
 
 if __name__ == "__main__":

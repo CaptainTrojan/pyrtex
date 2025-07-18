@@ -223,8 +223,9 @@ class TestRealWorldScenarios:
         Requires GCP authentication and will incur small costs.
         """
         # Simple prompt engineering: Tell the model exactly what to do
-        prompt = """The user provided a word: '{{ word }}'. 
-        Your task is to call the extract_info function with this exact word in the 'result' field.
+        prompt = """The user provided a word: '{{ word }}'.
+        Your task is to call the extract_info function with this exact word
+        in the 'result' field.
         Make sure to use the function calling capability."""
 
         job = Job(
@@ -328,12 +329,18 @@ class TestRealWorldScenarios:
             ), f"Request {request_key} failed: {result.error}"
             assert (
                 result.output.result == word
-            ), f"Expected '{word}' but got '{result.output.result}' for key {request_key}"
+            ), (
+                f"Expected '{word}' but got '{result.output.result}' "
+                f"for key {request_key}"
+            )
 
     @pytest.mark.incurs_costs
     @requires_project_id
     def test_model_robustness_with_simple_prompt(self):
-        """Test that the model can handle simple prompts and still use function calling."""
+        """
+        Test that the model can handle simple prompts and still use
+        function calling.
+        """
         # Even though this prompt doesn't explicitly instruct function calling,
         # the model should be smart enough to use it because tools are available
         prompt = """Just respond with plain text: {{ word }}"""

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
 Generate sample PDF and image files for PyRTex examples.
-This script creates realistic sample data to demonstrate PDF and image processing capabilities.
+This script creates realistic sample data to demonstrate PDF and image
+processing capabilities.
 """
 
-import base64
-import io
 import os
 from pathlib import Path
 
@@ -207,7 +206,7 @@ def create_product_catalog_image():
         price_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18
         )
-    except:
+    except (OSError, IOError):
         # Fallback to default font
         title_font = ImageFont.load_default()
         header_font = ImageFont.load_default()
@@ -340,7 +339,7 @@ def create_business_card_1():
         text_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14
         )
-    except:
+    except (OSError, IOError):
         title_font = ImageFont.load_default()
         name_font = ImageFont.load_default()
         text_font = ImageFont.load_default()
@@ -403,7 +402,7 @@ def create_business_card_2():
         text_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12
         )
-    except:
+    except (OSError, IOError):
         title_font = ImageFont.load_default()
         name_font = ImageFont.load_default()
         text_font = ImageFont.load_default()
@@ -455,9 +454,6 @@ def create_business_card_3():
     draw = ImageDraw.Draw(image)
 
     try:
-        title_font = ImageFont.truetype(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20
-        )
         name_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28
         )
@@ -467,8 +463,7 @@ def create_business_card_3():
         small_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12
         )
-    except:
-        title_font = ImageFont.load_default()
+    except (OSError, IOError):
         name_font = ImageFont.load_default()
         text_font = ImageFont.load_default()
         small_font = ImageFont.load_default()
@@ -539,8 +534,6 @@ def create_business_cards():
 def create_business_card_image():
     """Legacy function - redirects to first card design."""
     return create_business_card_1()
-    print(f"Created business card image: {image_path}")
-    return image_path
 
 
 def main():
@@ -556,13 +549,13 @@ def main():
     catalog_image = create_product_catalog_image()
     card_filenames = create_business_cards()
 
-    print(f"\nGenerated sample files:")
+    print("\nGenerated sample files:")
     print(f"  📄 PDF Invoice: {pdf_path}")
     print(f"  🖼️  Product Catalog: {catalog_image}")
-    print(f"  💳 Business Cards:")
+    print("  💳 Business Cards:")
     for filename in card_filenames:
         print(f"      • {filename}")
-    print(f"\nFiles are ready for use in PyRTex examples!")
+    print("\nFiles are ready for use in PyRTex examples!")
 
 
 if __name__ == "__main__":

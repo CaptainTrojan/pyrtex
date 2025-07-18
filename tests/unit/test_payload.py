@@ -250,7 +250,10 @@ class TestPayloadGeneration:
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
-            prompt_template="Hello {{ word }}! Your task is to process '{{ word }}' and return it.",
+            prompt_template=(
+                "Hello {{ word }}! Your task is to process '{{ word }}' "
+                "and return it."
+            ),
         )
 
         job.add_request("key1", SimpleInput(word="world"))
