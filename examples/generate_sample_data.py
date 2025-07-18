@@ -237,8 +237,8 @@ def create_product_catalog_image():
     print(f"Created product catalog image: {image_path}")
     return image_path
 
-def create_business_card_image():
-    """Create a sample business card image for text extraction."""
+def create_business_card_1():
+    """Create a corporate-style business card (horizontal layout)."""
     # Create image
     width, height = 600, 350
     image = Image.new('RGB', (width, height), '#f0f0f0')
@@ -284,10 +284,134 @@ def create_business_card_image():
     # Bottom accent
     draw.rectangle([(0, height-20), (width, height)], fill='#4a90e2')
     
-    # Save image
+    return image
+
+def create_business_card_2():
+    """Create a creative agency card (vertical layout, dark theme)."""
+    # Create image (vertical orientation)
+    width, height = 350, 550
+    image = Image.new('RGB', (width, height), '#1a1a1a')
+    draw = ImageDraw.Draw(image)
+    
+    try:
+        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+        name_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+        text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    except:
+        title_font = ImageFont.load_default()
+        name_font = ImageFont.load_default()
+        text_font = ImageFont.load_default()
+    
+    # Background gradient effect
+    draw.rectangle([(0, 0), (width, height)], fill='#1a1a1a')
+    
+    # Top accent strip
+    draw.rectangle([(0, 0), (width, 40)], fill='#e74c3c')
+    
+    # Company logo/icon (circle)
+    draw.ellipse([(140, 60), (210, 130)], fill='#e74c3c', outline='#c0392b', width=3)
+    draw.text((160, 85), "CA", fill='white', font=title_font)
+    
+    # Company name (centered)
+    draw.text((70, 150), "Creative Agency", fill='white', font=title_font)
+    draw.text((110, 175), "Design Studio", fill='#bdc3c7', font=text_font)
+    
+    # Divider line
+    draw.line([(50, 220), (300, 220)], fill='#e74c3c', width=2)
+    
+    # Contact person (centered)
+    draw.text((110, 250), "Marcus Chen", fill='white', font=name_font)
+    draw.text((90, 275), "Creative Director", fill='#95a5a6', font=text_font)
+    
+    # Contact details (centered)
+    draw.text((60, 320), "marcus@creativeagency.co", fill='#ecf0f1', font=text_font)
+    draw.text((120, 345), "(555) 234-5678", fill='#ecf0f1', font=text_font)
+    draw.text((80, 370), "creativeagency.co", fill='#ecf0f1', font=text_font)
+    
+    # Address
+    draw.text((80, 395), "789 Design District", fill='#ecf0f1', font=text_font)
+    draw.text((100, 415), "Brooklyn, NY 11201", fill='#ecf0f1', font=text_font)
+    
+    # Services
+    draw.text((130, 460), "Specialties:", fill='#e74c3c', font=name_font)
+    draw.text((90, 485), "• Brand Identity", fill='#bdc3c7', font=text_font)
+    draw.text((90, 505), "• Web Design", fill='#bdc3c7', font=text_font)
+    draw.text((90, 525), "• Print Design", fill='#bdc3c7', font=text_font)
+    
+    return image
+
+def create_business_card_3():
+    """Create a minimal consultant card (square format, minimal design)."""
+    # Create image (square format)
+    width, height = 450, 450
+    image = Image.new('RGB', (width, height), 'white')
+    draw = ImageDraw.Draw(image)
+    
+    try:
+        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        name_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+        text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    except:
+        title_font = ImageFont.load_default()
+        name_font = ImageFont.load_default()
+        text_font = ImageFont.load_default()
+        small_font = ImageFont.load_default()
+    
+    # Clean white background with subtle border
+    draw.rectangle([(0, 0), (width, height)], fill='white', outline='#e0e0e0', width=1)
+    
+    # Minimal geometric accent (top left corner)
+    draw.rectangle([(0, 0), (80, 80)], fill='#2ecc71')
+    
+    # Large name (centered top)
+    draw.text((120, 120), "Dr. Elena Rodriguez", fill='#2c3e50', font=name_font)
+    
+    # Title (centered)
+    draw.text((110, 160), "Business Strategy Consultant", fill='#7f8c8d', font=text_font)
+    
+    # Subtle divider
+    draw.line([(100, 200), (350, 200)], fill='#bdc3c7', width=1)
+    
+    # Contact info (clean layout)
+    draw.text((100, 230), "elena.rodriguez@strategy-pro.com", fill='#34495e', font=text_font)
+    draw.text((100, 255), "+1 (555) 456-7890", fill='#34495e', font=text_font)
+    draw.text((100, 280), "www.strategy-pro.com", fill='#34495e', font=text_font)
+    
+    # Address
+    draw.text((100, 320), "321 Business Plaza, Suite 1200", fill='#7f8c8d', font=small_font)
+    draw.text((100, 340), "San Francisco, CA 94105", fill='#7f8c8d', font=small_font)
+    
+    # Services (bottom right)
+    draw.text((250, 380), "Strategic Planning", fill='#2ecc71', font=small_font)
+    draw.text((250, 395), "Operations Optimization", fill='#2ecc71', font=small_font)
+    draw.text((250, 410), "Market Analysis", fill='#2ecc71', font=small_font)
+    
+    return image
+
+def create_business_cards():
+    """Create three different business card designs and save them."""
     data_dir = Path(__file__).parent / "data"
-    image_path = data_dir / "business_card.png"
-    image.save(image_path)
+    data_dir.mkdir(exist_ok=True)
+    
+    # Create and save each card
+    cards = [
+        (create_business_card_1(), "business_card_1.png", "Corporate TechSolutions card"),
+        (create_business_card_2(), "business_card_2.png", "Creative Agency card"),
+        (create_business_card_3(), "business_card_3.png", "Consultant card")
+    ]
+    
+    for card_image, filename, description in cards:
+        image_path = data_dir / filename
+        card_image.save(image_path)
+        print(f"✓ Created {description}: {filename}")
+    
+    return [card[1] for card in cards]  # Return filenames
+
+# Keep legacy function for backward compatibility
+def create_business_card_image():
+    """Legacy function - redirects to first card design."""
+    return create_business_card_1()
     print(f"Created business card image: {image_path}")
     return image_path
 
@@ -302,12 +426,14 @@ def main():
     # Generate files
     pdf_path = create_sample_pdf()
     catalog_image = create_product_catalog_image()
-    card_image = create_business_card_image()
+    card_filenames = create_business_cards()
     
     print(f"\nGenerated sample files:")
     print(f"  📄 PDF Invoice: {pdf_path}")
     print(f"  🖼️  Product Catalog: {catalog_image}")
-    print(f"  💳 Business Card: {card_image}")
+    print(f"  💳 Business Cards:")
+    for filename in card_filenames:
+        print(f"      • {filename}")
     print(f"\nFiles are ready for use in PyRTex examples!")
 
 if __name__ == "__main__":
