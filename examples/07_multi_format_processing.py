@@ -2,7 +2,8 @@
 """
 Example 7: Multi-Format Processing
 
-Demonstrates processing different file types (images, PDFs, text, audio, video) in a single batch.
+Demonstrates processing different file types (images, PDFs, text, audio, video)
+in a single batch.
 """
 
 from pathlib import Path
@@ -59,8 +60,8 @@ def main():
         prompt_template="""
 Extract key information from this file: {{ file_path }}
 
-For audio/video files, analyze the content and provide a transcript summary if applicable.
-For other files, extract relevant data.
+For audio/video files, analyze the content and provide a transcript summary
+if applicable. For other files, extract relevant data.
 
 Provide:
 - A brief content summary

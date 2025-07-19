@@ -2,7 +2,6 @@
 
 import json
 import logging
-import mimetypes
 import sys
 import uuid
 from pathlib import Path
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class Job(Generic[T]):
     """
-    Manages the configuration, submission, and result retrieval for a
+    Manages the configuration, submission, and retrieval for a
     Vertex AI Batch Prediction Job.
 
     The generic type parameter T should match the output_schema for type safety:
@@ -179,7 +178,8 @@ class Job(Generic[T]):
             ext = source_path.suffix.lower()
 
             # Map file extensions to Gemini-supported MIME types only
-            # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini
+            # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/
+            #            model-reference/gemini
             gemini_supported_types = {
                 # Text files - all map to text/plain
                 ".txt": "text/plain",
@@ -218,14 +218,15 @@ class Job(Generic[T]):
                 # Video files
                 ".mov": "video/mov",
                 ".mp4": "video/mp4",
-                ".mpeg": "video/mpeg",
+                ".mpv": "video/mpeg",  # Use .mpv for video mpeg to avoid duplicate
                 ".mpg": "video/mpg",
                 ".avi": "video/avi",
                 ".wmv": "video/wmv",
                 ".flv": "video/flv",
             }
 
-            # Use our mapping if available, otherwise default to text/plain for unknown extensions
+            # Use our mapping if available, otherwise default to text/plain
+            # for unknown extensions
             mime_type = gemini_supported_types.get(ext, "text/plain")
 
         if isinstance(source, bytes):
@@ -236,7 +237,10 @@ class Job(Generic[T]):
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 
     def _get_flattened_schema(self) -> dict:
-        """Generate a flattened JSON schema without $ref references for BigQuery compatibility."""
+        """
+        Generate a flattened JSON schema without $ref references
+        for BigQuery compatibility.
+        """
         schema = self.output_schema.model_json_schema()
 
         # If there are no $defs, return as-is
@@ -255,7 +259,8 @@ class Job(Generic[T]):
                         if def_name in defs:
                             # Get the resolved definition
                             resolved = resolve_refs(defs[def_name].copy())
-                            # Preserve any properties from the original object (like description)
+                            # Preserve any properties from the original object
+                            # (like description)
                             original_props = {
                                 k: v for k, v in obj.items() if k != "$ref"
                             }
@@ -697,7 +702,8 @@ class Job(Generic[T]):
         return self.output_schema(**dummy_data)
 
     def _validate_enum_values(self):
-        """Validates that enum values don't conflict with JSON boolean interpretation."""
+        """Validates that enum values don't conflict with JSON boolean
+        interpretation."""
         from enum import Enum
         from typing import get_args, get_origin
 
@@ -742,10 +748,12 @@ class Job(Generic[T]):
                         v.lower() for v in PROBLEMATIC_VALUES
                     }:
                         raise ValueError(
-                            f"Enum value '{enum_value}' in field '{field_name}' of enum '{field_type.__name__}' "
+                            f"Enum value '{enum_value}' in field "
+                            f"'{field_name}' of enum '{field_type.__name__}' "
                             f"conflicts with JSON boolean interpretation. "
                             f"Problematic values: {sorted(PROBLEMATIC_VALUES)}. "
-                            f"Consider using values like 'recommend'/'not_recommend' instead of 'yes'/'no'."
+                            f"Consider using values like "
+                            f"'recommend'/'not_recommend' instead of 'yes'/'no'."
                         )
 
         # Check all fields in the output schema

@@ -555,7 +555,7 @@ property_details:
   zip_code: "94103"
   property_type: "Condominium"
   year_built: 2019
-  
+
 size_and_layout:
   bedrooms: 3
   bathrooms: 2.5
@@ -563,13 +563,13 @@ size_and_layout:
   floor_number: 45
   balcony: true
   view: "City and Bay View"
-  
+
 pricing:
   list_price: 2150000
   price_per_sqft: 1162
   hoa_fees_monthly: 850
   property_taxes_annual: 25800
-  
+
 features:
   - "Floor-to-ceiling windows"
   - "Hardwood floors throughout"
@@ -587,7 +587,7 @@ building_amenities:
   pool: false
   parking_spaces: 1
   pet_friendly: true
-  
+
 market_info:
   days_on_market: 12
   price_reduced: false
@@ -610,7 +610,7 @@ property_details:
   property_type: "Single Family Home"
   year_built: 1987
   last_renovated: 2021
-  
+
 size_and_layout:
   bedrooms: 4
   bathrooms: 3
@@ -618,13 +618,13 @@ size_and_layout:
   lot_size_sqft: 7200
   garage_spaces: 2
   stories: 2
-  
+
 pricing:
   list_price: 3750000
   price_per_sqft: 1415
   property_taxes_annual: 45000
   estimated_monthly_utilities: 280
-  
+
 features:
   - "Updated chef's kitchen"
   - "Master suite with walk-in closet"
@@ -642,12 +642,12 @@ outdoor_space:
   deck: false
   garden: true
   sprinkler_system: true
-  
+
 schools:
   elementary: "Duveneck Elementary (9/10)"
   middle: "Jane Lathrop Stanford Middle (9/10)"
   high: "Palo Alto High School (9/10)"
-  
+
 market_info:
   days_on_market: 8
   price_reduced: false
@@ -872,7 +872,6 @@ def create_sample_json_files():
 
 def create_minimal_test_files():
     """Create minimal test files for various MIME types supported by Gemini."""
-    import io
     import wave
 
     data_dir = Path(__file__).parent / "data"

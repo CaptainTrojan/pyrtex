@@ -1587,7 +1587,8 @@ class TestSchemaFlattening:
         try:
             flattened = job._get_flattened_schema()
 
-            # Should leave non-$defs refs unchanged (this exercises line 277: return obj)
+            # Should leave non-$defs refs unchanged (this exercises line 277:
+            # return obj)
             assert (
                 flattened["properties"]["anchor_field"]["$ref"]
                 == "#/definitions/SomeType"
@@ -1599,7 +1600,10 @@ class TestSchemaFlattening:
             job.output_schema.model_json_schema = original_method
 
     def test_get_flattened_schema_deeply_nested_refs(self, mock_gcp_clients):
-        """Test schema flattening with deeply nested structures to ensure all branches are covered."""
+        """
+        Test schema flattening with deeply nested structures to ensure
+        all branches are covered.
+        """
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
@@ -1615,7 +1619,8 @@ class TestSchemaFlattening:
                         "level2": {
                             "type": "array",
                             "items": {
-                                "$ref": "http://external.com/schema#/Type"  # External ref - should hit line 277
+                                # External ref - should hit line 277
+                                "$ref": "http://external.com/schema#/Type"
                             },
                         }
                     },

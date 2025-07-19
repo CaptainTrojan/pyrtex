@@ -51,7 +51,10 @@ def main():
     job = Job(
         model="gemini-2.0-flash-lite-001",
         output_schema=ContactInfo,
-        prompt_template="Extract contact information from this business card: {{ image }}",
+        prompt_template=(
+            "Extract contact information from this business card: {{ image }}"
+        ),
+        simulation_mode=True,
     )
 
     # Add each business card as a separate request

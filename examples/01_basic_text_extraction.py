@@ -5,8 +5,6 @@ Example 1: Basic Text Extraction
 Demonstrates the fundamental PyRTex workflow: extract structured data from text input.
 """
 
-from pathlib import Path
-
 from pydantic import BaseModel
 
 from pyrtex import Job

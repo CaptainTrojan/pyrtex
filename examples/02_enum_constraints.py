@@ -6,7 +6,6 @@ Demonstrates using enums to constrain model outputs to specific valid values.
 """
 
 from enum import Enum
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -54,7 +53,10 @@ def main():
     job.add_request(
         "email1",
         EmailInput(
-            email_text="URGENT: The server is down and customers are complaining! Please fix ASAP!"
+            email_text=(
+                "URGENT: The server is down and customers are complaining! "
+                "Please fix ASAP!"
+            )
         ),
     )
 

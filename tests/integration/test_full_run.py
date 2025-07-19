@@ -272,7 +272,8 @@ class TestRealWorldScenarios:
         # Get the examples data directory (where sample files are generated)
         examples_dir = Path(__file__).parent.parent.parent / "examples" / "data"
 
-        # Test files for different MIME types (these should be created by generate_sample_data.py)
+        # Test files for different MIME types
+        # (these should be created by generate_sample_data.py)
         test_files = [
             # Text files (text/plain)
             ("luxury_condo.yaml", "text/plain"),
@@ -330,16 +331,17 @@ class TestRealWorldScenarios:
                     failed_files.append((result.request_key, result.error))
 
             # Print results summary
-            print(f"\n📊 MIME Type Test Results:")
+            print("\n📊 MIME Type Test Results:")
             print(f"✅ Successful: {successful_count}/{len(existing_files)}")
             if failed_files:
-                print(f"❌ Failed files:")
+                print("❌ Failed files:")
                 for filename, error in failed_files:
                     print(f"   • {filename}: {error}")
 
-            assert successful_count == len(
-                existing_files
-            ), f"Expected all files to succeed, but {successful_count} succeeded out of {len(existing_files)}"
+            assert successful_count == len(existing_files), (
+                f"Expected all files to succeed, but {successful_count} "
+                f"succeeded out of {len(existing_files)}"
+            )
 
         except Exception as e:
             # If we get an exception, make sure to clean up properly
@@ -773,7 +775,10 @@ class TestMimeTypeDetection:
         ), f"Expected text/plain for bytes, got {mime_type}"
 
     def test_no_unsupported_mime_types(self, mock_gcp_clients):
-        """Ensure we never generate unsupported MIME types that would cause API errors."""
+        """
+        Ensure we never generate unsupported MIME types that would
+        cause API errors.
+        """
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
@@ -782,7 +787,8 @@ class TestMimeTypeDetection:
         )
 
         # List of Gemini-supported MIME types (as of July 2025)
-        # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini
+        # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/
+        # model-reference/gemini
         supported_mime_types = {
             "application/pdf",
             "audio/mpeg",
@@ -811,7 +817,8 @@ class TestMimeTypeDetection:
             ".css",  # Should NOT be text/css
             ".html",  # Should NOT be text/html
             ".doc",  # Should NOT be application/msword
-            ".xlsx",  # Should NOT be application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+            ".xlsx",  # Should NOT be application/vnd.openxmlformats-
+            # officedocument.spreadsheetml.sheet
             ".zip",  # Should NOT be application/zip
         ]
 
