@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class Job(Generic[T]):
+
     """
     Manages the configuration, submission, and result retrieval for a
     Vertex AI Batch Prediction Job.
@@ -172,8 +173,68 @@ class Job(Generic[T]):
         """Uploads a local file or bytes to GCS and returns its URI and mime type."""
         bucket = self._storage_client.bucket(self.config.gcs_bucket_name)
         blob = bucket.blob(gcs_path)
-        mime_type, _ = mimetypes.guess_type(str(source))
-        mime_type = mime_type or "application/octet-stream"
+        
+        # Improved MIME type detection with only Gemini-supported types
+        if isinstance(source, bytes):
+            # For bytes, we can't detect extension, so default to text/plain
+            mime_type = "text/plain"
+        else:
+            source_path = Path(source)
+            ext = source_path.suffix.lower()
+            
+            # Map file extensions to Gemini-supported MIME types only
+            # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini
+            gemini_supported_types = {
+                # Text files - all map to text/plain
+                '.txt': 'text/plain',
+                '.yaml': 'text/plain',
+                '.yml': 'text/plain',
+                '.json': 'text/plain',  # JSON files are text, not application/json
+                '.xml': 'text/plain',
+                '.csv': 'text/plain',
+                '.tsv': 'text/plain',
+                '.md': 'text/plain',
+                '.rst': 'text/plain',
+                '.log': 'text/plain',
+                '.ini': 'text/plain',
+                '.cfg': 'text/plain',
+                '.conf': 'text/plain',
+                '.py': 'text/plain',
+                '.js': 'text/plain',
+                '.css': 'text/plain',
+                '.html': 'text/plain',
+                '.htm': 'text/plain',
+                '.sql': 'text/plain',
+                '.sh': 'text/plain',
+                '.bat': 'text/plain',
+                '.ps1': 'text/plain',
+                
+                # PDF files
+                '.pdf': 'application/pdf',
+                
+                # Image files
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.webp': 'image/webp',
+                
+                # Audio files
+                '.mp3': 'audio/mp3',
+                '.mpeg': 'audio/mpeg',
+                '.wav': 'audio/wav',
+                
+                # Video files
+                '.mov': 'video/mov',
+                '.mp4': 'video/mp4',
+                '.mpeg': 'video/mpeg',
+                '.mpg': 'video/mpg',
+                '.avi': 'video/avi',
+                '.wmv': 'video/wmv',
+                '.flv': 'video/flv'
+            }
+            
+            # Use our mapping if available, otherwise default to text/plain for unknown extensions
+            mime_type = gemini_supported_types.get(ext, 'text/plain')
 
         if isinstance(source, bytes):
             blob.upload_from_string(source, content_type=mime_type)
@@ -412,7 +473,8 @@ class Job(Generic[T]):
             "bq://", ""
         )
         logger.info(f"Querying results from BigQuery table: `{output_table}`")
-        query = f"SELECT id, response FROM `{output_table}`"
+        # Include status column to check for errors
+        query = f"SELECT id, response, status FROM `{output_table}`"
 
         try:
             query_job = self._bigquery_client.query(query)
@@ -420,21 +482,56 @@ class Job(Generic[T]):
                 instance_id = row.id
                 request_key = self._instance_map.get(instance_id)
 
+                result_args = {
+                    "request_key": request_key,
+                    "raw_response": {},
+                    "usage_metadata": None,
+                }
+
+                # Check status first for errors
+                if hasattr(row, 'status') and row.status and row.status != "{}":
+                    # Parse status for error information
+                    try:
+                        status_dict = json.loads(row.status) if isinstance(row.status, str) else row.status
+                        if "error" in status_dict:
+                            error_info = status_dict["error"]
+                            if isinstance(error_info, dict):
+                                error_msg = error_info.get("message", str(error_info))
+                                error_code = error_info.get("code", "")
+                                result_args["error"] = f"API Error {error_code}: {error_msg}"
+                            else:
+                                result_args["error"] = f"API Error: {error_info}"
+                        else:
+                            result_args["error"] = f"Request failed with status: {row.status}"
+                    except (json.JSONDecodeError, TypeError):
+                        result_args["error"] = f"Request failed with status: {row.status}"
+                    
+                    yield BatchResult[T](**result_args)
+                    continue
+
+                # Process successful response
+                if not row.response:
+                    result_args["error"] = "Empty response from API"
+                    yield BatchResult[T](**result_args)
+                    continue
+
                 # Check if response is already a dict or needs to be parsed
                 if isinstance(row.response, dict):
                     response_dict = row.response
                 else:
-                    response_dict = json.loads(row.response)
+                    try:
+                        response_dict = json.loads(row.response)
+                    except json.JSONDecodeError as e:
+                        result_args["error"] = f"Failed to parse response JSON: {e}"
+                        yield BatchResult[T](**result_args)
+                        continue
+
+                result_args["raw_response"] = response_dict
 
                 # Process usage metadata to extract token counts
                 usage_metadata = response_dict.get("usageMetadata")
                 processed_usage_metadata = self._process_usage_metadata(usage_metadata)
-
-                result_args = {
-                    "request_key": request_key,
-                    "raw_response": response_dict,
-                    "usage_metadata": processed_usage_metadata,
-                }
+                result_args["usage_metadata"] = processed_usage_metadata
 
                 try:
                     # Extract the function call arguments which contain
@@ -448,7 +545,17 @@ class Job(Generic[T]):
                     result_args["output"] = parsed_output
 
                 except (KeyError, IndexError, TypeError) as e:
-                    result_args["error"] = f"Failed to parse model output: {e}"
+                    # Check if there's an error in the response
+                    if "error" in response_dict:
+                        error_info = response_dict["error"]
+                        if isinstance(error_info, dict):
+                            error_msg = error_info.get("message", str(error_info))
+                            error_code = error_info.get("code", "")
+                            result_args["error"] = f"Response Error {error_code}: {error_msg}"
+                        else:
+                            result_args["error"] = f"Response Error: {error_info}"
+                    else:
+                        result_args["error"] = f"Failed to parse model output: {e}"
                 except Exception as e:
                     result_args["error"] = f"Validation error: {e}"
 

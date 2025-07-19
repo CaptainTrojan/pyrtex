@@ -1,0 +1,85 @@
+{
+  "listing_id": "COMM-2025-0445",
+  "property_type": "Commercial Office Building",
+  "listing_agent": {
+    "name": "David Thompson",
+    "company": "Bay Area Commercial Properties",
+    "phone": "(415) 555-0199",
+    "email": "dthompson@bacprop.com"
+  },
+  "property_address": {
+    "street": "888 Howard Street",
+    "city": "San Francisco",
+    "state": "CA",
+    "zip": "94103",
+    "neighborhood": "SOMA"
+  },
+  "building_details": {
+    "year_built": 2015,
+    "total_floors": 12,
+    "total_square_feet": 145000,
+    "available_square_feet": 8500,
+    "parking_spaces": 75,
+    "elevator_count": 3,
+    "building_class": "A"
+  },
+  "available_units": [
+    {
+      "floor": 8,
+      "suite": "800A",
+      "square_feet": 3200,
+      "rent_per_sqft_annual": 85,
+      "lease_type": "Modified Gross",
+      "available_date": "2025-09-01"
+    },
+    {
+      "floor": 11,
+      "suite": "1100B",
+      "square_feet": 5300,
+      "rent_per_sqft_annual": 90,
+      "lease_type": "Triple Net",
+      "available_date": "2025-08-15"
+    }
+  ],
+  "pricing": {
+    "asking_rent_psf_annual": 87.5,
+    "estimated_operating_expenses": 12.5,
+    "property_taxes_psf": 8.75,
+    "cad_charges_psf": 3.25
+  },
+  "amenities": [
+    "24/7 security",
+    "Fiber internet ready",
+    "Conference facilities",
+    "Rooftop terrace",
+    "Bike storage",
+    "Electric vehicle charging",
+    "On-site cafeteria"
+  ],
+  "building_systems": {
+    "hvac": "Central air conditioning",
+    "electrical": "220V available",
+    "internet": "Fiber optic backbone",
+    "security": "Card access system",
+    "fire_safety": "Sprinkler system throughout"
+  },
+  "market_metrics": {
+    "days_on_market": 45,
+    "vacancy_rate_building": 0.12,
+    "vacancy_rate_submarket": 0.18,
+    "recent_comparable_rent_psf": 82.0,
+    "tenant_retention_rate": 0.89
+  },
+  "zoning_and_legal": {
+    "zoning": "C-3-O (Downtown Office)",
+    "permits_required": [
+      "Business license",
+      "Signage permit"
+    ],
+    "restrictions": [
+      "No manufacturing",
+      "Ground floor retail preferred"
+    ],
+    "seismic_rating": "Excellent"
+  }
+}

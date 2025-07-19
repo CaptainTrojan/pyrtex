@@ -1,0 +1,57 @@
+# Family Home in Palo Alto
+property_id: "HOUSE-2025-078"
+listing_agent: "Michael Chen"
+agency: "Peninsula Real Estate Group"
+listing_date: "2025-07-10"
+
+property_details:
+  address: "567 Elm Street"
+  city: "Palo Alto"
+  state: "California"
+  zip_code: "94301"
+  property_type: "Single Family Home"
+  year_built: 1987
+  last_renovated: 2021
+  
+size_and_layout:
+  bedrooms: 4
+  bathrooms: 3
+  square_feet: 2650
+  lot_size_sqft: 7200
+  garage_spaces: 2
+  stories: 2
+  
+pricing:
+  list_price: 3750000
+  price_per_sqft: 1415
+  property_taxes_annual: 45000
+  estimated_monthly_utilities: 280
+  
+features:
+  - "Updated chef's kitchen"
+  - "Master suite with walk-in closet"
+  - "Backyard with mature landscaping"
+  - "Home office/study"
+  - "Fireplace in living room"
+  - "Central air conditioning"
+  - "Solar panels"
+  - "Two-car garage"
+
+outdoor_space:
+  backyard: true
+  front_yard: true
+  patio: true
+  deck: false
+  garden: true
+  sprinkler_system: true
+  
+schools:
+  elementary: "Duveneck Elementary (9/10)"
+  middle: "Jane Lathrop Stanford Middle (9/10)"
+  high: "Palo Alto High School (9/10)"
+  
+market_info:
+  days_on_market: 8
+  price_reduced: false
+  open_house_scheduled: true
+  estimated_closing: "2025-08-15"

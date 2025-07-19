@@ -1,0 +1,104 @@
+{
+  "property_id": "APT-COMPLEX-2025-156",
+  "property_name": "Sunset Gardens Apartments",
+  "property_type": "Multi-Family Residential",
+  "management_company": {
+    "name": "Golden Gate Property Management",
+    "contact_person": "Jennifer Rodriguez",
+    "phone": "(415) 555-0287",
+    "email": "jrodriguez@ggpm.com",
+    "license_number": "CA-RE-001847293"
+  },
+  "location": {
+    "address": "1425-1475 19th Avenue",
+    "city": "San Francisco",
+    "state": "California",
+    "zip_code": "94122",
+    "neighborhood": "Sunset District",
+    "walk_score": 78,
+    "transit_score": 65
+  },
+  "property_overview": {
+    "year_built": 1995,
+    "last_renovation": 2020,
+    "total_units": 48,
+    "stories": 4,
+    "lot_size_sqft": 18500,
+    "building_sqft": 52000,
+    "parking_spaces": 38
+  },
+  "unit_mix": [
+    {
+      "unit_type": "Studio",
+      "count": 8,
+      "avg_sqft": 450,
+      "rent_range": [
+        2100,
+        2400
+      ],
+      "currently_available": 1
+    },
+    {
+      "unit_type": "1 Bedroom",
+      "count": 24,
+      "avg_sqft": 650,
+      "rent_range": [
+        2800,
+        3200
+      ],
+      "currently_available": 3
+    },
+    {
+      "unit_type": "2 Bedroom",
+      "count": 16,
+      "avg_sqft": 950,
+      "rent_range": [
+        3600,
+        4100
+      ],
+      "currently_available": 2
+    }
+  ],
+  "financial_performance": {
+    "gross_scheduled_income_annual": 1680000,
+    "current_occupancy_rate": 0.875,
+    "average_rent_per_unit": 2917,
+    "operating_expenses_annual": 485000,
+    "net_operating_income": 985000,
+    "cap_rate": 0.045
+  },
+  "property_features": [
+    "Controlled access entry",
+    "Laundry facility on each floor",
+    "Rooftop deck with city views",
+    "Bicycle storage",
+    "Package receiving service",
+    "Courtyard garden",
+    "Updated appliances",
+    "Hardwood floors in select units"
+  ],
+  "nearby_amenities": {
+    "transportation": [
+      "N-Judah Muni line (0.3 miles)",
+      "Multiple bus lines",
+      "Ocean Beach (0.8 miles)"
+    ],
+    "shopping": [
+      "Irving Street shopping district",
+      "Stonestown Galleria (1.2 miles)",
+      "Local grocery stores"
+    ],
+    "recreation": [
+      "Golden Gate Park (0.5 miles)",
+      "Stern Grove (0.7 miles)",
+      "SF Zoo (1.5 miles)"
+    ]
+  },
+  "investment_metrics": {
+    "asking_price": 21900000,
+    "price_per_unit": 456250,
+    "price_per_sqft": 421,
+    "estimated_annual_appreciation": 0.038,
+    "property_tax_rate": 0.0118
+  }
+}
