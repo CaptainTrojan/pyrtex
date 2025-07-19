@@ -83,6 +83,156 @@ class TestJobInitialization:
         assert "Could not automatically discover GCP Project ID" in str(exc_info.value)
 
 
+class TestEnumValidation:
+    """Test enum value validation to prevent boolean interpretation conflicts."""
+
+    def test_problematic_enum_values_rejected(self, mock_gcp_clients):
+        """Test that problematic enum values are rejected during job initialization."""
+        from enum import Enum
+        from pydantic import BaseModel, Field
+
+        class ProblematicEnum(str, Enum):
+            YES = "yes"
+            NO = "no"
+
+        class ProblematicOutput(BaseModel):
+            choice: ProblematicEnum = Field(description="Test enum")
+
+        with pytest.raises(ValueError) as exc_info:
+            Job(
+                model="gemini-2.0-flash-lite-001",
+                output_schema=ProblematicOutput,
+                prompt_template="Test",
+            )
+
+        error_msg = str(exc_info.value)
+        assert "Enum value 'yes'" in error_msg
+        assert "conflicts with JSON boolean interpretation" in error_msg
+        assert "'recommend'/'not_recommend'" in error_msg
+
+    def test_various_problematic_enum_values(self, mock_gcp_clients):
+        """Test that various problematic enum values are all caught."""
+        from enum import Enum
+        from pydantic import BaseModel, Field
+
+        problematic_values = [
+            ("yes", "no"),
+            ("true", "false"), 
+            ("YES", "NO"),
+            ("True", "False"),
+            ("y", "n"),
+            ("Y", "N"),
+            ("1", "0")
+        ]
+
+        for val1, val2 in problematic_values:
+            class TestEnum(str, Enum):
+                OPTION1 = val1
+                OPTION2 = val2
+
+            class TestOutput(BaseModel):
+                choice: TestEnum = Field(description="Test enum")
+
+            with pytest.raises(ValueError) as exc_info:
+                Job(
+                    model="gemini-2.0-flash-lite-001",
+                    output_schema=TestOutput,
+                    prompt_template="Test",
+                )
+
+            error_msg = str(exc_info.value)
+            assert f"Enum value '{val1}'" in error_msg or f"Enum value '{val2}'" in error_msg
+
+    def test_safe_enum_values_accepted(self, mock_gcp_clients):
+        """Test that safe enum values are accepted."""
+        from enum import Enum
+        from pydantic import BaseModel, Field
+
+        class SafeEnum(str, Enum):
+            RECOMMEND = "recommend"
+            NOT_RECOMMEND = "not_recommend"
+            EXCELLENT = "excellent"
+            GOOD = "good"
+            APPROVED = "approved"
+            DENIED = "denied"
+
+        class SafeOutput(BaseModel):
+            choice: SafeEnum = Field(description="Safe enum")
+
+        # This should not raise an exception
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SafeOutput,
+            prompt_template="Test",
+        )
+        assert job is not None
+
+    def test_optional_enum_validation(self, mock_gcp_clients):
+        """Test that Optional[Enum] types are also validated."""
+        from enum import Enum
+        from typing import Optional
+        from pydantic import BaseModel, Field
+
+        class ProblematicEnum(str, Enum):
+            TRUE = "true"
+            FALSE = "false"
+
+        class OptionalEnumOutput(BaseModel):
+            choice: Optional[ProblematicEnum] = Field(description="Optional enum")
+
+        with pytest.raises(ValueError) as exc_info:
+            Job(
+                model="gemini-2.0-flash-lite-001",
+                output_schema=OptionalEnumOutput,
+                prompt_template="Test",
+            )
+
+        error_msg = str(exc_info.value)
+        assert "Enum value" in error_msg
+        assert "conflicts with JSON boolean interpretation" in error_msg
+
+    def test_non_enum_fields_ignored(self, mock_gcp_clients):
+        """Test that non-enum fields are not affected by validation."""
+        from pydantic import BaseModel, Field
+
+        class MixedOutput(BaseModel):
+            text_field: str = Field(description="Regular string")
+            bool_field: bool = Field(description="Regular boolean")
+            int_field: int = Field(description="Regular integer")
+
+        # This should not raise an exception
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=MixedOutput,
+            prompt_template="Test",
+        )
+        assert job is not None
+
+    def test_nested_enum_validation(self, mock_gcp_clients):
+        """Test that the validation works for direct enum fields."""
+        from enum import Enum
+        from typing import List
+        from pydantic import BaseModel, Field
+
+        class ProblematicEnum(str, Enum):
+            YES = "yes"
+            NO = "no"
+
+        class OutputWithDirectEnum(BaseModel):
+            choice: ProblematicEnum = Field(description="Direct enum field")
+            text: str = Field(description="Regular text field")
+
+        with pytest.raises(ValueError) as exc_info:
+            Job(
+                model="gemini-2.0-flash-lite-001",
+                output_schema=OutputWithDirectEnum,
+                prompt_template="Test",
+            )
+
+        error_msg = str(exc_info.value)
+        assert "Enum value 'yes'" in error_msg
+
+
 class TestJobRequestManagement:
     """Test adding requests to jobs."""
 
@@ -1218,3 +1368,252 @@ class TestJobEdgeCases:
             RuntimeError, match="Error querying or parsing BigQuery results"
         ):
             list(job.results())
+
+
+class TestSchemaFlattening:
+    """Test schema flattening functionality for BigQuery compatibility."""
+
+    def test_get_flattened_schema_no_refs(self, mock_gcp_clients):
+        """Test schema flattening when there are no $ref references."""
+        from pydantic import BaseModel, Field
+
+        class SimpleSchema(BaseModel):
+            name: str = Field(description="A simple string field")
+            count: int = Field(description="A simple integer field")
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleSchema,
+            prompt_template="Test",
+        )
+
+        flattened = job._get_flattened_schema()
+        
+        # Should return the schema as-is since there are no $defs
+        assert "$defs" not in flattened
+        assert "properties" in flattened
+        assert "name" in flattened["properties"]
+        assert "count" in flattened["properties"]
+
+    def test_get_flattened_schema_with_refs(self, mock_gcp_clients):
+        """Test schema flattening when there are $ref references."""
+        from enum import Enum
+        from pydantic import BaseModel, Field
+
+        class TestEnum(str, Enum):
+            OPTION1 = "option1"
+            OPTION2 = "option2"
+
+        class SchemaWithRefs(BaseModel):
+            choice: TestEnum = Field(description="An enum field")
+            name: str = Field(description="A string field")
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SchemaWithRefs,
+            prompt_template="Test",
+        )
+
+        flattened = job._get_flattened_schema()
+        
+        # Should have inlined the enum definition
+        assert "$defs" not in flattened
+        assert "properties" in flattened
+        assert "choice" in flattened["properties"]
+        
+        # The choice field should have the enum values directly
+        choice_field = flattened["properties"]["choice"]
+        assert "enum" in choice_field
+        assert choice_field["enum"] == ["option1", "option2"]
+        assert choice_field["type"] == "string"
+
+    def test_get_flattened_schema_preserves_descriptions(self, mock_gcp_clients):
+        """Test that schema flattening preserves field descriptions."""
+        from enum import Enum
+        from pydantic import BaseModel, Field
+
+        class TestEnum(str, Enum):
+            VALUE1 = "value1"
+            VALUE2 = "value2"
+
+        class SchemaWithDescriptions(BaseModel):
+            enum_field: TestEnum = Field(description="Custom enum description")
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SchemaWithDescriptions,
+            prompt_template="Test",
+        )
+
+        flattened = job._get_flattened_schema()
+        
+        # Should preserve the custom description
+        enum_field = flattened["properties"]["enum_field"]
+        assert enum_field["description"] == "Custom enum description"
+        assert "enum" in enum_field
+
+    def test_get_flattened_schema_with_lists(self, mock_gcp_clients):
+        """Test schema flattening with list types containing refs."""
+        from enum import Enum
+        from typing import List
+        from pydantic import BaseModel, Field
+
+        class TestEnum(str, Enum):
+            ITEM1 = "item1"
+            ITEM2 = "item2"
+
+        class SchemaWithLists(BaseModel):
+            enum_list: List[TestEnum] = Field(description="List of enums")
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SchemaWithLists,
+            prompt_template="Test",
+        )
+
+        flattened = job._get_flattened_schema()
+        
+        # Should have flattened the list items
+        assert "$defs" not in flattened
+        enum_list_field = flattened["properties"]["enum_list"]
+        assert enum_list_field["type"] == "array"
+        assert "items" in enum_list_field
+        
+        # The items should have the enum values inlined
+        items = enum_list_field["items"]
+        assert "enum" in items
+        assert items["enum"] == ["item1", "item2"]
+
+    def test_get_flattened_schema_ref_not_found(self, mock_gcp_clients):
+        """Test schema flattening handles missing ref definitions gracefully."""
+        # This test simulates a malformed schema with a $ref that doesn't exist in $defs
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+
+        # Manually create a schema with a broken $ref for testing
+        broken_schema = {
+            "properties": {
+                "broken_field": {"$ref": "#/$defs/NonExistentType"}
+            },
+            "$defs": {}
+        }
+        
+        # Monkey patch the schema generation to return our broken schema
+        original_method = job.output_schema.model_json_schema
+        job.output_schema.model_json_schema = lambda: broken_schema
+        
+        try:
+            flattened = job._get_flattened_schema()
+            
+            # Should return the broken $ref as-is since it can't be resolved
+            assert flattened["properties"]["broken_field"]["$ref"] == "#/$defs/NonExistentType"
+        finally:
+            # Restore the original method
+            job.output_schema.model_json_schema = original_method
+
+    def test_get_flattened_schema_external_ref(self, mock_gcp_clients):
+        """Test schema flattening ignores external (non-$defs) refs."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+
+        # Create a schema with an external $ref
+        external_ref_schema = {
+            "properties": {
+                "external_field": {"$ref": "http://example.com/schema#/SomeType"}
+            }
+        }
+        
+        # Monkey patch the schema generation
+        original_method = job.output_schema.model_json_schema
+        job.output_schema.model_json_schema = lambda: external_ref_schema
+        
+        try:
+            flattened = job._get_flattened_schema()
+            
+            # Should leave external refs unchanged
+            assert flattened["properties"]["external_field"]["$ref"] == "http://example.com/schema#/SomeType"
+        finally:
+            # Restore the original method
+            job.output_schema.model_json_schema = original_method
+
+    def test_get_flattened_schema_non_defs_ref(self, mock_gcp_clients):
+        """Test schema flattening handles refs that don't start with #/$defs/."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+
+        # Create a schema with both $defs and a non-$defs $ref to hit line 277
+        non_defs_ref_schema = {
+            "properties": {
+                "anchor_field": {"$ref": "#/definitions/SomeType"},
+                "normal_field": {"type": "string"}
+            },
+            "$defs": {
+                "SomeDefType": {
+                    "type": "object",
+                    "properties": {"test": {"type": "string"}}
+                }
+            }
+        }
+        
+        # Monkey patch the schema generation
+        original_method = job.output_schema.model_json_schema
+        job.output_schema.model_json_schema = lambda: non_defs_ref_schema
+        
+        try:
+            flattened = job._get_flattened_schema()
+            
+            # Should leave non-$defs refs unchanged (this exercises line 277: return obj)
+            assert flattened["properties"]["anchor_field"]["$ref"] == "#/definitions/SomeType"
+            # Should not have $defs in the flattened schema
+            assert "$defs" not in flattened
+        finally:
+            # Restore the original method
+            job.output_schema.model_json_schema = original_method
+
+    def test_get_flattened_schema_deeply_nested_refs(self, mock_gcp_clients):
+        """Test schema flattening with deeply nested structures to ensure all branches are covered."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+
+        # Create a complex nested schema with various ref patterns to hit all code paths
+        complex_schema = {
+            "properties": {
+                "level1": {
+                    "type": "object",
+                    "properties": {
+                        "level2": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "http://external.com/schema#/Type"  # External ref - should hit line 277
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Monkey patch the schema generation
+        original_method = job.output_schema.model_json_schema
+        job.output_schema.model_json_schema = lambda: complex_schema
+        
+        try:
+            flattened = job._get_flattened_schema()
+            
+            # Should preserve external refs in nested structures
+            items_ref = flattened["properties"]["level1"]["properties"]["level2"]["items"]["$ref"]
+            assert items_ref == "http://external.com/schema#/Type"
+        finally:
+            # Restore the original method
+            job.output_schema.model_json_schema = original_method

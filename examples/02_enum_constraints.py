@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-Example 4: Batch Real Estate Analysis with PyRTex (Enum Example)
+Example 2: Enum Constraints for Structured Output
 
-This example demonstrates processing multiple real estate files (YAML and JSON)
-as independent requests in a single batch job to extract property information.
-It showcases using Python enums to constrain model outputs to specific values.
+This example demonstrates using Python enums to constrain model outputs to 
+specific valid values. By defining enum types in your Pydantic schema, you can
+ensure the AI model only returns values from predefined categories.
 
-We'll analyze 4 different real estate properties:
-- luxury_condo.yaml (San Francisco condo listing)
-- suburban_house.yaml (Palo Alto family home)
-- office_building.json (Commercial office space)
-- apartment_complex.json (Multi-family residential complex)
+Key Features Demonstrated:
+- Python str Enums for constrained categorical outputs
+- Batch processing with enum validation
+- Schema generation with enum constraints for Gemini function calling
+- Mixed field types (enums + primitives) in output schemas
 
-Each file represents a different property and will be processed independently
-to extract standardized real estate information with enum constraints.
+We'll analyze 4 different real estate properties and extract:
+- Property type (enum: house, condo, apartment, office, retail, townhouse, land)
+- Listing price (int: dollar amount)
+- Investment grade (enum: excellent, good, fair, poor)
 """
 
 import json
@@ -59,7 +61,7 @@ class RealEstateAnalysis(BaseModel):
 
 
 def main():
-    """Process real estate files to extract property information with enum constraints."""
+    """Process real estate files to demonstrate enum constraints in output schemas."""
     
     # Get the data directory
     data_dir = Path(__file__).parent / "data"
@@ -86,7 +88,7 @@ def main():
         print("\n💡 Run generate_sample_data.py first to create the sample files.")
         return
     
-    print("🏠 Processing real estate property files with enum constraints...")
+    print("🏠 Processing real estate files with enum constraints...")
     print("📁 Properties to analyze:")
     for filename in files_to_process:
         print(f"   • {filename}")
@@ -192,6 +194,7 @@ Please extract concrete data points where available. If information is missing, 
         print(f"\n🎉 Real estate analysis complete! Processed {len(results)} properties.")
         print("💡 Each property was analyzed using enum constraints to ensure consistent categorization.")
         print("🔧 Enum types help constrain model outputs to predefined, valid values.")
+        print("✨ Benefits of enums: type safety, validation, and guaranteed consistent outputs!")
         
     except Exception as e:
         print(f"\n❌ Error during batch processing: {e}")

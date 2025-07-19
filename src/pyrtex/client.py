@@ -61,6 +61,9 @@ class Job(Generic[T]):
         self.config = config or InfrastructureConfig()
         self.simulation_mode = simulation_mode
 
+        # Validate schema for problematic enum values
+        self._validate_enum_values()
+
         self._session_id: str = uuid.uuid4().hex[:10]
         self._requests: List[tuple[Hashable, BaseModel]] = []
         self._instance_map: Dict[str, Hashable] = {}
@@ -261,7 +264,11 @@ class Job(Generic[T]):
                     if ref_path.startswith('#/$defs/'):
                         def_name = ref_path.replace('#/$defs/', '')
                         if def_name in defs:
+                            # Get the resolved definition
                             resolved = resolve_refs(defs[def_name].copy())
+                            # Preserve any properties from the original object (like description)
+                            original_props = {k: v for k, v in obj.items() if k != '$ref'}
+                            resolved.update(original_props)
                             return resolved
                         else:
                             # If ref not found, return the ref as-is (shouldn't happen)
@@ -687,3 +694,46 @@ class Job(Generic[T]):
                     dummy_data[field_name] = f"dummy_{field_name}"
 
         return self.output_schema(**dummy_data)
+
+    def _validate_enum_values(self):
+        """Validates that enum values don't conflict with JSON boolean interpretation."""
+        from enum import Enum
+        from typing import get_origin, get_args
+        
+        # Problematic enum values that can be interpreted as booleans
+        PROBLEMATIC_VALUES = {
+            "yes", "no", "true", "false", 
+            "Yes", "No", "True", "False",
+            "YES", "NO", "TRUE", "FALSE",
+            "y", "n", "Y", "N",
+            "1", "0"
+        }
+        
+        def check_field_enums(field_type, field_name: str):
+            """Recursively check field types for problematic enum values."""
+            # Handle Union types (like Optional[Enum])
+            origin = get_origin(field_type)
+            if origin is not None:
+                args = get_args(field_type)
+                for arg in args:
+                    if arg is not type(None):  # Skip NoneType
+                        check_field_enums(arg, field_name)
+                return
+            
+            # Check if this is an enum class
+            if isinstance(field_type, type) and issubclass(field_type, Enum):
+                for enum_member in field_type:
+                    enum_value = enum_member.value
+                    if isinstance(enum_value, str) and enum_value.lower() in {v.lower() for v in PROBLEMATIC_VALUES}:
+                        raise ValueError(
+                            f"Enum value '{enum_value}' in field '{field_name}' of enum '{field_type.__name__}' "
+                            f"conflicts with JSON boolean interpretation. "
+                            f"Problematic values: {sorted(PROBLEMATIC_VALUES)}. "
+                            f"Consider using values like 'recommend'/'not_recommend' instead of 'yes'/'no'."
+                        )
+        
+        # Check all fields in the output schema
+        schema_fields = self.output_schema.model_fields
+        for field_name, field_info in schema_fields.items():
+            field_type = field_info.annotation
+            check_field_enums(field_type, field_name)
