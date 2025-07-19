@@ -411,6 +411,7 @@ class TestRealBigQueryResultParsing:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [
@@ -437,6 +438,7 @@ class TestRealBigQueryResultParsing:
             ),
             Mock(
                 id="req_00001_87654321",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [
@@ -495,7 +497,7 @@ class TestRealBigQueryResultParsing:
         assert result2.error is None
 
         # Verify the BigQuery query was called correctly
-        expected_query = "SELECT id, response FROM `project.dataset.table`"
+        expected_query = "SELECT id, response, status FROM `project.dataset.table`"
         job._bigquery_client.query.assert_called_once_with(expected_query)
 
     def test_bigquery_result_parsing_with_model_errors(self, mock_gcp_clients):
@@ -517,6 +519,7 @@ class TestRealBigQueryResultParsing:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [
@@ -589,6 +592,7 @@ class TestRealBigQueryResultParsing:
             # Second request returned first
             Mock(
                 id="req_00001_batch_1",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [
@@ -612,6 +616,7 @@ class TestRealBigQueryResultParsing:
             # Third request returned second
             Mock(
                 id="req_00002_batch_2",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [
@@ -635,6 +640,7 @@ class TestRealBigQueryResultParsing:
             # First request returned last
             Mock(
                 id="req_00000_batch_0",
+                status=None,  # No error status
                 response=json.dumps(
                     {
                         "candidates": [

@@ -136,6 +136,7 @@ class TestBigQueryResultParsing:
         # Create mock row where response is already a dict (not JSON string)
         mock_row = Mock()
         mock_row.id = "req_00000_12345678"
+        mock_row.status = None  # No error status
         mock_row.response = {  # This is a dict, not a JSON string
             "candidates": [
                 {

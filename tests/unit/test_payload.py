@@ -339,7 +339,7 @@ class TestFileUpload:
         gcs_uri, mime_type = job._upload_file_to_gcs(test_bytes, "test/binary.bin")
 
         assert gcs_uri == "gs://pyrtex-assets-test-project/test/binary.bin"
-        assert mime_type == "application/octet-stream"
+        assert mime_type == "text/plain"
 
         # Verify mock calls
         mock_gcp_clients["storage"].bucket.assert_called_with(
@@ -365,7 +365,7 @@ class TestFileUpload:
             )
 
             assert gcs_uri == "gs://pyrtex-assets-test-project/test/data.json"
-            assert mime_type == "application/json"
+            assert mime_type == "text/plain"
 
             # Verify mock calls
             mock_gcp_clients["storage"].bucket.assert_called_with(

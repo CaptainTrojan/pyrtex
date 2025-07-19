@@ -458,12 +458,12 @@ class TestFileUpload:
 
         # Verify blob upload
         mock_blob.upload_from_string.assert_called_once_with(
-            test_data, content_type="application/octet-stream"
+            test_data, content_type="text/plain"
         )
 
         expected_uri = f"gs://{job.config.gcs_bucket_name}/test/path.txt"
         assert gcs_uri == expected_uri
-        assert mime_type == "application/octet-stream"
+        assert mime_type == "text/plain"
 
     def test_upload_file_to_gcs_path(self, mock_gcp_clients, tmp_path):
         """Test uploading file path to GCS."""
@@ -1069,6 +1069,7 @@ class TestJobEdgeCases:
         # Mock BigQuery results
         mock_row = Mock()
         mock_row.id = "req_00001_12345678"
+        mock_row.status = None  # No error status
         mock_row.response = json.dumps(
             {
                 "candidates": [
@@ -1119,6 +1120,7 @@ class TestJobEdgeCases:
         # Mock BigQuery results without function call
         mock_row = Mock()
         mock_row.id = "req_00001_12345678"
+        mock_row.status = None  # No error status
         mock_row.response = json.dumps(
             {
                 "candidates": [
@@ -1162,6 +1164,7 @@ class TestJobEdgeCases:
         # Mock BigQuery results with invalid data for schema
         mock_row = Mock()
         mock_row.id = "req_00001_12345678"
+        mock_row.status = None  # No error status
         mock_row.response = json.dumps(
             {
                 "candidates": [
