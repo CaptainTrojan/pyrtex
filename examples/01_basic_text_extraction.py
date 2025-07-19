@@ -6,12 +6,15 @@ Demonstrates the fundamental PyRTex workflow: extract structured data from text 
 """
 
 from pathlib import Path
+
 from pydantic import BaseModel
+
 from pyrtex import Job
 
 
 class PersonInfo(BaseModel):
     """Simple output schema for person information."""
+
     name: str
     age: int
     occupation: str
@@ -19,6 +22,7 @@ class PersonInfo(BaseModel):
 
 class TextInput(BaseModel):
     """Input schema for text processing."""
+
     text: str
 
 
@@ -29,12 +33,15 @@ def main():
         output_schema=PersonInfo,
         prompt_template="Extract person information from: {{ text }}",
     )
-    
+
     # Add a request
-    job.add_request("person1", TextInput(
-        text="John Smith is a 30-year-old software engineer working at Tech Corp."
-    ))
-    
+    job.add_request(
+        "person1",
+        TextInput(
+            text="John Smith is a 30-year-old software engineer working at Tech Corp."
+        ),
+    )
+
     # Submit, wait, and get results
     for result in job.submit().wait().results():
         if result.was_successful:

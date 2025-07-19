@@ -254,9 +254,7 @@ class TestRealWorldScenarios:
             assert (
                 result.was_successful
             ), f"Request {request_key} failed: {result.error}"
-            assert (
-                result.output.result == word
-            ), (
+            assert result.output.result == word, (
                 f"Expected '{word}' but got '{result.output.result}' "
                 f"for key {request_key}"
             )
@@ -268,27 +266,26 @@ class TestRealWorldScenarios:
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
-            prompt_template="Summarize the content."
+            prompt_template="Summarize the content.",
         )
-        
+
         # Get the examples data directory (where sample files are generated)
         examples_dir = Path(__file__).parent.parent.parent / "examples" / "data"
-        
+
         # Test files for different MIME types (these should be created by generate_sample_data.py)
         test_files = [
             # Text files (text/plain)
-            ('luxury_condo.yaml', 'text/plain'),
-            ('office_building.json', 'text/plain'),
-            
+            ("luxury_condo.yaml", "text/plain"),
+            ("office_building.json", "text/plain"),
             # Minimal test files for other MIME types
-            ('test_minimal.pdf', 'application/pdf'),
-            ('test_minimal.png', 'image/png'),
-            ('test_minimal.jpg', 'image/jpeg'),
-            ('test_minimal.webp', 'image/webp'),
-            ('test_minimal.wav', 'audio/wav'),
-            ('test_minimal.mp4', 'video/mp4'),
+            ("test_minimal.pdf", "application/pdf"),
+            ("test_minimal.png", "image/png"),
+            ("test_minimal.jpg", "image/jpeg"),
+            ("test_minimal.webp", "image/webp"),
+            ("test_minimal.wav", "audio/wav"),
+            ("test_minimal.mp4", "video/mp4"),
         ]
-        
+
         # Filter to only include files that actually exist
         existing_files = []
         for filename, expected_mime in test_files:
@@ -297,31 +294,41 @@ class TestRealWorldScenarios:
                 existing_files.append((str(file_path), filename, expected_mime))
             else:
                 print(f"⚠️  Skipping {filename} (file not found)")
-        
-        if len(existing_files) < 4:  # We need at least a few files to make the test meaningful
-            pytest.skip("Not enough test files available. Run generate_sample_data.py first.")
-        
+
+        if (
+            len(existing_files) < 4
+        ):  # We need at least a few files to make the test meaningful
+            pytest.skip(
+                "Not enough test files available. Run generate_sample_data.py first."
+            )
+
         try:
             # Add all existing files to job
             for file_path, filename, expected_mime in existing_files:
-                job.add_request(filename.replace('.', '_'), FileInput(file_path=file_path))
-            
+                job.add_request(
+                    filename.replace(".", "_"), FileInput(file_path=file_path)
+                )
+
             # Process files
             results = list(job.submit().wait().results())
-            
+
             # Verify all files processed successfully
-            assert len(results) == len(existing_files), f"Expected {len(existing_files)} results, got {len(results)}"
-            
+            assert len(results) == len(
+                existing_files
+            ), f"Expected {len(existing_files)} results, got {len(results)}"
+
             successful_count = 0
             failed_files = []
-            
+
             for result in results:
                 if result.was_successful:
                     successful_count += 1
-                    assert result.output.summary is not None, f"No summary for {result.request_key}"
+                    assert (
+                        result.output.summary is not None
+                    ), f"No summary for {result.request_key}"
                 else:
                     failed_files.append((result.request_key, result.error))
-            
+
             # Print results summary
             print(f"\n📊 MIME Type Test Results:")
             print(f"✅ Successful: {successful_count}/{len(existing_files)}")
@@ -329,9 +336,11 @@ class TestRealWorldScenarios:
                 print(f"❌ Failed files:")
                 for filename, error in failed_files:
                     print(f"   • {filename}: {error}")
-            
-            assert successful_count == len(existing_files), f"Expected all files to succeed, but {successful_count} succeeded out of {len(existing_files)}"
-                
+
+            assert successful_count == len(
+                existing_files
+            ), f"Expected all files to succeed, but {successful_count} succeeded out of {len(existing_files)}"
+
         except Exception as e:
             # If we get an exception, make sure to clean up properly
             pytest.fail(f"Test failed with exception: {e}")
@@ -704,43 +713,47 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # Test cases: (extension, expected_mime_type, file_content)
         # These are ALL the MIME types supported by Gemini
         test_cases = [
             # Text files - all should map to text/plain
-            ('.txt', 'text/plain', 'Simple text content'),
-            ('.yaml', 'text/plain', 'key: value\nlist:\n  - item1\n  - item2'),
-            ('.yml', 'text/plain', 'config:\n  debug: true'),
-            ('.json', 'text/plain', '{"name": "test", "value": 123}'),
-            ('.xml', 'text/plain', '<?xml version="1.0"?><root><item>data</item></root>'),
-            ('.csv', 'text/plain', 'name,age,city\nJohn,25,NYC\nJane,30,LA'),
-            ('.md', 'text/plain', '# Title\n\nThis is **markdown**.'),
-            ('.py', 'text/plain', 'def hello():\n    print("Hello World")'),
-            ('.js', 'text/plain', 'function hello() { console.log("Hello"); }'),
-            ('.html', 'text/plain', '<html><body><h1>Hello</h1></body></html>'),
-            ('.sql', 'text/plain', 'SELECT * FROM users WHERE age > 25;'),
-            ('.log', 'text/plain', '2025-07-19 INFO: Application started'),
-            
+            (".txt", "text/plain", "Simple text content"),
+            (".yaml", "text/plain", "key: value\nlist:\n  - item1\n  - item2"),
+            (".yml", "text/plain", "config:\n  debug: true"),
+            (".json", "text/plain", '{"name": "test", "value": 123}'),
+            (
+                ".xml",
+                "text/plain",
+                '<?xml version="1.0"?><root><item>data</item></root>',
+            ),
+            (".csv", "text/plain", "name,age,city\nJohn,25,NYC\nJane,30,LA"),
+            (".md", "text/plain", "# Title\n\nThis is **markdown**."),
+            (".py", "text/plain", 'def hello():\n    print("Hello World")'),
+            (".js", "text/plain", 'function hello() { console.log("Hello"); }'),
+            (".html", "text/plain", "<html><body><h1>Hello</h1></body></html>"),
+            (".sql", "text/plain", "SELECT * FROM users WHERE age > 25;"),
+            (".log", "text/plain", "2025-07-19 INFO: Application started"),
             # PDF files
             # Note: We can't easily create real PDF content in tests
             # so we'll test the extension mapping only
-            
             # Unknown extensions should default to text/plain
-            ('.unknown', 'text/plain', 'Some unknown file content'),
-            ('.xyz', 'text/plain', 'Another unknown extension'),
+            (".unknown", "text/plain", "Some unknown file content"),
+            (".xyz", "text/plain", "Another unknown extension"),
         ]
-        
+
         for ext, expected_mime, content in test_cases:
-            with tempfile.NamedTemporaryFile(mode='w', suffix=ext, delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=ext, delete=False) as f:
                 f.write(content)
                 file_path = f.name
-            
+
             try:
                 gcs_uri, mime_type = job._upload_file_to_gcs(file_path, f"test{ext}")
-                assert mime_type == expected_mime, f"Expected {expected_mime} for {ext}, got {mime_type}"
+                assert (
+                    mime_type == expected_mime
+                ), f"Expected {expected_mime} for {ext}, got {mime_type}"
             finally:
                 Path(file_path).unlink()
 
@@ -750,12 +763,14 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         test_bytes = b"Some test content"
         gcs_uri, mime_type = job._upload_file_to_gcs(test_bytes, "test.bin")
-        assert mime_type == "text/plain", f"Expected text/plain for bytes, got {mime_type}"
+        assert (
+            mime_type == "text/plain"
+        ), f"Expected text/plain for bytes, got {mime_type}"
 
     def test_no_unsupported_mime_types(self, mock_gcp_clients):
         """Ensure we never generate unsupported MIME types that would cause API errors."""
@@ -763,48 +778,48 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # List of Gemini-supported MIME types (as of July 2025)
         # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini
         supported_mime_types = {
-            'application/pdf',
-            'audio/mpeg',
-            'audio/mp3', 
-            'audio/wav',
-            'image/png',
-            'image/jpeg',
-            'image/webp',
-            'text/plain',
-            'video/mov',
-            'video/mpeg',
-            'video/mp4',
-            'video/mpg',
-            'video/avi',
-            'video/wmv',
-            'video/mpegps',
-            'video/flv'
+            "application/pdf",
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/wav",
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "text/plain",
+            "video/mov",
+            "video/mpeg",
+            "video/mp4",
+            "video/mpg",
+            "video/avi",
+            "video/wmv",
+            "video/mpegps",
+            "video/flv",
         }
-        
+
         # Test a variety of file extensions that might produce unsupported MIME types
         problematic_extensions = [
-            '.json',      # Should NOT be application/json
-            '.xml',       # Should NOT be application/xml  
-            '.csv',       # Should NOT be text/csv
-            '.js',        # Should NOT be application/javascript
-            '.css',       # Should NOT be text/css
-            '.html',      # Should NOT be text/html
-            '.doc',       # Should NOT be application/msword
-            '.xlsx',      # Should NOT be application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-            '.zip',       # Should NOT be application/zip
+            ".json",  # Should NOT be application/json
+            ".xml",  # Should NOT be application/xml
+            ".csv",  # Should NOT be text/csv
+            ".js",  # Should NOT be application/javascript
+            ".css",  # Should NOT be text/css
+            ".html",  # Should NOT be text/html
+            ".doc",  # Should NOT be application/msword
+            ".xlsx",  # Should NOT be application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+            ".zip",  # Should NOT be application/zip
         ]
-        
+
         for ext in problematic_extensions:
-            with tempfile.NamedTemporaryFile(mode='w', suffix=ext, delete=False) as f:
-                f.write(f'Test content for {ext} file')
+            with tempfile.NamedTemporaryFile(mode="w", suffix=ext, delete=False) as f:
+                f.write(f"Test content for {ext} file")
                 file_path = f.name
-            
+
             try:
                 gcs_uri, mime_type = job._upload_file_to_gcs(file_path, f"test{ext}")
                 assert mime_type in supported_mime_types, (
@@ -812,8 +827,8 @@ class TestMimeTypeDetection:
                     f"Supported types: {supported_mime_types}"
                 )
                 # For these text-based extensions, they should all map to text/plain
-                assert mime_type == 'text/plain', (
-                    f"Extension {ext} should map to text/plain, got {mime_type}"
-                )
+                assert (
+                    mime_type == "text/plain"
+                ), f"Extension {ext} should map to text/plain, got {mime_type}"
             finally:
                 Path(file_path).unlink()

@@ -27,12 +27,9 @@ class TestBigQueryErrorHandling:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
-                status=json.dumps({
-                    "error": {
-                        "code": 400,
-                        "message": "Invalid request format"
-                    }
-                }),
+                status=json.dumps(
+                    {"error": {"code": 400, "message": "Invalid request format"}}
+                ),
                 response=None,
             )
         ]
@@ -71,9 +68,7 @@ class TestBigQueryErrorHandling:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
-                status=json.dumps({
-                    "error": "Something went wrong"
-                }),
+                status=json.dumps({"error": "Something went wrong"}),
                 response=None,
             )
         ]
@@ -112,9 +107,7 @@ class TestBigQueryErrorHandling:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
-                status=json.dumps({
-                    "some_other_field": "some_value"
-                }),
+                status=json.dumps({"some_other_field": "some_value"}),
                 response=None,
             )
         ]
@@ -271,17 +264,16 @@ class TestBigQueryErrorHandling:
             Mock(
                 id="req_00000_12345678",
                 status=None,
-                response=json.dumps({
-                    "error": {
-                        "code": 500,
-                        "message": "Internal server error"
-                    },
-                    "usageMetadata": {
-                        "promptTokenCount": 10,
-                        "candidatesTokenCount": 0,
-                        "totalTokenCount": 10,
-                    },
-                }),
+                response=json.dumps(
+                    {
+                        "error": {"code": 500, "message": "Internal server error"},
+                        "usageMetadata": {
+                            "promptTokenCount": 10,
+                            "candidatesTokenCount": 0,
+                            "totalTokenCount": 10,
+                        },
+                    }
+                ),
             )
         ]
 
@@ -320,14 +312,16 @@ class TestBigQueryErrorHandling:
             Mock(
                 id="req_00000_12345678",
                 status=None,
-                response=json.dumps({
-                    "error": "Request failed",
-                    "usageMetadata": {
-                        "promptTokenCount": 10,
-                        "candidatesTokenCount": 0,
-                        "totalTokenCount": 10,
-                    },
-                }),
+                response=json.dumps(
+                    {
+                        "error": "Request failed",
+                        "usageMetadata": {
+                            "promptTokenCount": 10,
+                            "candidatesTokenCount": 0,
+                            "totalTokenCount": 10,
+                        },
+                    }
+                ),
             )
         ]
 
@@ -365,12 +359,7 @@ class TestBigQueryErrorHandling:
         mock_rows = [
             Mock(
                 id="req_00000_12345678",
-                status={
-                    "error": {
-                        "code": 403,
-                        "message": "Access denied"
-                    }
-                },
+                status={"error": {"code": 403, "message": "Access denied"}},
                 response=None,
             )
         ]

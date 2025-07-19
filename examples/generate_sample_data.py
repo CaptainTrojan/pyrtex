@@ -540,7 +540,7 @@ def create_sample_yaml_files():
     """Create sample YAML files for real estate properties."""
     data_dir = Path(__file__).parent / "data"
     data_dir.mkdir(exist_ok=True)
-    
+
     # Luxury Condo YAML
     luxury_condo = """# Luxury Downtown Condo Listing
 property_id: "CONDO-2025-001"
@@ -594,8 +594,8 @@ market_info:
   multiple_offers: true
   estimated_closing: "2025-08-30"
 """
-    
-    # Suburban House YAML  
+
+    # Suburban House YAML
     suburban_house = """# Family Home in Palo Alto
 property_id: "HOUSE-2025-078"
 listing_agent: "Michael Chen"
@@ -654,29 +654,29 @@ market_info:
   open_house_scheduled: true
   estimated_closing: "2025-08-15"
 """
-    
+
     condo_path = data_dir / "luxury_condo.yaml"
     house_path = data_dir / "suburban_house.yaml"
-    
-    with open(condo_path, 'w', encoding='utf-8') as f:
+
+    with open(condo_path, "w", encoding="utf-8") as f:
         f.write(luxury_condo)
-    
-    with open(house_path, 'w', encoding='utf-8') as f:
+
+    with open(house_path, "w", encoding="utf-8") as f:
         f.write(suburban_house)
-    
+
     print(f"✓ Created luxury condo listing: {condo_path.name}")
     print(f"✓ Created suburban house listing: {house_path.name}")
-    
+
     return [condo_path.name, house_path.name]
 
 
 def create_sample_json_files():
     """Create sample JSON files for real estate properties."""
     import json
-    
+
     data_dir = Path(__file__).parent / "data"
     data_dir.mkdir(exist_ok=True)
-    
+
     # Commercial Office Building JSON
     office_building = {
         "listing_id": "COMM-2025-0445",
@@ -685,14 +685,14 @@ def create_sample_json_files():
             "name": "David Thompson",
             "company": "Bay Area Commercial Properties",
             "phone": "(415) 555-0199",
-            "email": "dthompson@bacprop.com"
+            "email": "dthompson@bacprop.com",
         },
         "property_address": {
             "street": "888 Howard Street",
-            "city": "San Francisco", 
+            "city": "San Francisco",
             "state": "CA",
             "zip": "94103",
-            "neighborhood": "SOMA"
+            "neighborhood": "SOMA",
         },
         "building_details": {
             "year_built": 2015,
@@ -701,7 +701,7 @@ def create_sample_json_files():
             "available_square_feet": 8500,
             "parking_spaces": 75,
             "elevator_count": 3,
-            "building_class": "A"
+            "building_class": "A",
         },
         "available_units": [
             {
@@ -710,22 +710,22 @@ def create_sample_json_files():
                 "square_feet": 3200,
                 "rent_per_sqft_annual": 85,
                 "lease_type": "Modified Gross",
-                "available_date": "2025-09-01"
+                "available_date": "2025-09-01",
             },
             {
                 "floor": 11,
-                "suite": "1100B", 
+                "suite": "1100B",
                 "square_feet": 5300,
                 "rent_per_sqft_annual": 90,
                 "lease_type": "Triple Net",
-                "available_date": "2025-08-15"
-            }
+                "available_date": "2025-08-15",
+            },
         ],
         "pricing": {
             "asking_rent_psf_annual": 87.50,
             "estimated_operating_expenses": 12.50,
             "property_taxes_psf": 8.75,
-            "cad_charges_psf": 3.25
+            "cad_charges_psf": 3.25,
         },
         "amenities": [
             "24/7 security",
@@ -734,30 +734,30 @@ def create_sample_json_files():
             "Rooftop terrace",
             "Bike storage",
             "Electric vehicle charging",
-            "On-site cafeteria"
+            "On-site cafeteria",
         ],
         "building_systems": {
             "hvac": "Central air conditioning",
             "electrical": "220V available",
             "internet": "Fiber optic backbone",
             "security": "Card access system",
-            "fire_safety": "Sprinkler system throughout"
+            "fire_safety": "Sprinkler system throughout",
         },
         "market_metrics": {
             "days_on_market": 45,
             "vacancy_rate_building": 0.12,
             "vacancy_rate_submarket": 0.18,
             "recent_comparable_rent_psf": 82.00,
-            "tenant_retention_rate": 0.89
+            "tenant_retention_rate": 0.89,
         },
         "zoning_and_legal": {
             "zoning": "C-3-O (Downtown Office)",
             "permits_required": ["Business license", "Signage permit"],
             "restrictions": ["No manufacturing", "Ground floor retail preferred"],
-            "seismic_rating": "Excellent"
-        }
+            "seismic_rating": "Excellent",
+        },
     }
-    
+
     # Apartment Complex JSON
     apartment_complex = {
         "property_id": "APT-COMPLEX-2025-156",
@@ -768,7 +768,7 @@ def create_sample_json_files():
             "contact_person": "Jennifer Rodriguez",
             "phone": "(415) 555-0287",
             "email": "jrodriguez@ggpm.com",
-            "license_number": "CA-RE-001847293"
+            "license_number": "CA-RE-001847293",
         },
         "location": {
             "address": "1425-1475 19th Avenue",
@@ -777,7 +777,7 @@ def create_sample_json_files():
             "zip_code": "94122",
             "neighborhood": "Sunset District",
             "walk_score": 78,
-            "transit_score": 65
+            "transit_score": 65,
         },
         "property_overview": {
             "year_built": 1995,
@@ -786,7 +786,7 @@ def create_sample_json_files():
             "stories": 4,
             "lot_size_sqft": 18500,
             "building_sqft": 52000,
-            "parking_spaces": 38
+            "parking_spaces": 38,
         },
         "unit_mix": [
             {
@@ -794,22 +794,22 @@ def create_sample_json_files():
                 "count": 8,
                 "avg_sqft": 450,
                 "rent_range": [2100, 2400],
-                "currently_available": 1
+                "currently_available": 1,
             },
             {
                 "unit_type": "1 Bedroom",
                 "count": 24,
                 "avg_sqft": 650,
                 "rent_range": [2800, 3200],
-                "currently_available": 3
+                "currently_available": 3,
             },
             {
                 "unit_type": "2 Bedroom",
                 "count": 16,
                 "avg_sqft": 950,
                 "rent_range": [3600, 4100],
-                "currently_available": 2
-            }
+                "currently_available": 2,
+            },
         ],
         "financial_performance": {
             "gross_scheduled_income_annual": 1680000,
@@ -817,56 +817,56 @@ def create_sample_json_files():
             "average_rent_per_unit": 2917,
             "operating_expenses_annual": 485000,
             "net_operating_income": 985000,
-            "cap_rate": 0.045
+            "cap_rate": 0.045,
         },
         "property_features": [
             "Controlled access entry",
-            "Laundry facility on each floor", 
+            "Laundry facility on each floor",
             "Rooftop deck with city views",
             "Bicycle storage",
             "Package receiving service",
             "Courtyard garden",
             "Updated appliances",
-            "Hardwood floors in select units"
+            "Hardwood floors in select units",
         ],
         "nearby_amenities": {
             "transportation": [
                 "N-Judah Muni line (0.3 miles)",
                 "Multiple bus lines",
-                "Ocean Beach (0.8 miles)"
+                "Ocean Beach (0.8 miles)",
             ],
             "shopping": [
                 "Irving Street shopping district",
                 "Stonestown Galleria (1.2 miles)",
-                "Local grocery stores"
+                "Local grocery stores",
             ],
             "recreation": [
                 "Golden Gate Park (0.5 miles)",
                 "Stern Grove (0.7 miles)",
-                "SF Zoo (1.5 miles)"
-            ]
+                "SF Zoo (1.5 miles)",
+            ],
         },
         "investment_metrics": {
             "asking_price": 21900000,
             "price_per_unit": 456250,
             "price_per_sqft": 421,
             "estimated_annual_appreciation": 0.038,
-            "property_tax_rate": 0.0118
-        }
+            "property_tax_rate": 0.0118,
+        },
     }
-    
+
     office_path = data_dir / "office_building.json"
     apartment_path = data_dir / "apartment_complex.json"
-    
-    with open(office_path, 'w', encoding='utf-8') as f:
+
+    with open(office_path, "w", encoding="utf-8") as f:
         json.dump(office_building, f, indent=2)
-    
-    with open(apartment_path, 'w', encoding='utf-8') as f:
+
+    with open(apartment_path, "w", encoding="utf-8") as f:
         json.dump(apartment_complex, f, indent=2)
-    
+
     print(f"✓ Created office building listing: {office_path.name}")
     print(f"✓ Created apartment complex listing: {apartment_path.name}")
-    
+
     return [office_path.name, apartment_path.name]
 
 
@@ -874,54 +874,58 @@ def create_minimal_test_files():
     """Create minimal test files for various MIME types supported by Gemini."""
     import io
     import wave
-    
+
     data_dir = Path(__file__).parent / "data"
     data_dir.mkdir(exist_ok=True)
-    
+
     created_files = []
-    
+
     # 1. Create a minimal PDF (using reportlab)
     try:
         from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph
         from reportlab.lib.styles import getSampleStyleSheet
-        
+        from reportlab.platypus import Paragraph, SimpleDocTemplate
+
         pdf_path = data_dir / "test_minimal.pdf"
         doc = SimpleDocTemplate(str(pdf_path), pagesize=letter)
         styles = getSampleStyleSheet()
-        story = [Paragraph("Minimal test PDF for PyRTex MIME type testing.", styles['Normal'])]
+        story = [
+            Paragraph(
+                "Minimal test PDF for PyRTex MIME type testing.", styles["Normal"]
+            )
+        ]
         doc.build(story)
         created_files.append(("test_minimal.pdf", "application/pdf"))
         print(f"✓ Created minimal PDF: {pdf_path.name}")
     except ImportError:
         print("⚠️  Skipping PDF creation (reportlab not available)")
-    
+
     # 2. Create a minimal PNG image (1x1 pixel)
     try:
         from PIL import Image
-        
+
         img_path = data_dir / "test_minimal.png"
         # Create a tiny 1x1 white pixel image
-        img = Image.new('RGB', (1, 1), color='white')
+        img = Image.new("RGB", (1, 1), color="white")
         img.save(img_path)
         created_files.append(("test_minimal.png", "image/png"))
         print(f"✓ Created minimal PNG: {img_path.name}")
     except ImportError:
         print("⚠️  Skipping PNG creation (PIL not available)")
-    
+
     # 3. Create a minimal JPEG image (1x1 pixel)
     try:
         from PIL import Image
-        
+
         jpg_path = data_dir / "test_minimal.jpg"
         # Create a tiny 1x1 red pixel image
-        img = Image.new('RGB', (1, 1), color='red')
-        img.save(jpg_path, 'JPEG')
+        img = Image.new("RGB", (1, 1), color="red")
+        img.save(jpg_path, "JPEG")
         created_files.append(("test_minimal.jpg", "image/jpeg"))
         print(f"✓ Created minimal JPEG: {jpg_path.name}")
     except ImportError:
         print("⚠️  Skipping JPEG creation (PIL not available)")
-    
+
     # 4. Create a minimal WAV audio file (1 second of silence)
     wav_path = data_dir / "test_minimal.wav"
     try:
@@ -929,31 +933,31 @@ def create_minimal_test_files():
         sample_rate = 8000
         duration = 1  # 1 second
         frames = sample_rate * duration
-        
-        with wave.open(str(wav_path), 'wb') as wav_file:
+
+        with wave.open(str(wav_path), "wb") as wav_file:
             wav_file.setnchannels(1)  # Mono
             wav_file.setsampwidth(2)  # 2 bytes per sample (16-bit)
             wav_file.setframerate(sample_rate)
-            
+
             # Write silence (all zeros)
-            silence = b'\x00\x00' * frames
+            silence = b"\x00\x00" * frames
             wav_file.writeframes(silence)
-        
+
         created_files.append(("test_minimal.wav", "audio/wav"))
         print(f"✓ Created minimal WAV: {wav_path.name}")
     except Exception as e:
         print(f"⚠️  Skipping WAV creation: {e}")
-    
+
     # 5. Create a real 1-second MP4 video file
     mp4_path = data_dir / "test_minimal.mp4"
     try:
         import cv2
         import numpy as np
-        
+
         # Create a 1-second video at 30fps with 100x100 resolution
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         video_writer = cv2.VideoWriter(str(mp4_path), fourcc, 30.0, (100, 100))
-        
+
         # Create 30 frames (1 second at 30fps)
         for frame_num in range(30):
             # Create a frame with changing colors
@@ -962,7 +966,7 @@ def create_minimal_test_files():
             color_value = int(255 * frame_num / 30)
             frame[:, :] = [color_value, 100, 255 - color_value]  # BGR format
             video_writer.write(frame)
-        
+
         video_writer.release()
         created_files.append(("test_minimal.mp4", "video/mp4"))
         print(f"✓ Created real 1-second MP4 video: {mp4_path.name}")
@@ -970,42 +974,42 @@ def create_minimal_test_files():
         print("⚠️  OpenCV not available, creating minimal MP4 placeholder...")
         try:
             # Fallback: Create a minimal valid MP4 structure if OpenCV is not available
-            with open(mp4_path, 'wb') as f:
+            with open(mp4_path, "wb") as f:
                 # Write a more complete MP4 header structure
                 # ftyp box
-                f.write(b'\x00\x00\x00\x20')  # box size
-                f.write(b'ftyp')  # box type
-                f.write(b'mp42')  # major brand
-                f.write(b'\x00\x00\x00\x00')  # minor version
-                f.write(b'mp42isom')  # compatible brands
-                
+                f.write(b"\x00\x00\x00\x20")  # box size
+                f.write(b"ftyp")  # box type
+                f.write(b"mp42")  # major brand
+                f.write(b"\x00\x00\x00\x00")  # minor version
+                f.write(b"mp42isom")  # compatible brands
+
                 # mdat box with minimal data
-                f.write(b'\x00\x00\x00\x10')  # box size
-                f.write(b'mdat')  # box type
-                f.write(b'\x00' * 8)  # minimal data
-            
+                f.write(b"\x00\x00\x00\x10")  # box size
+                f.write(b"mdat")  # box type
+                f.write(b"\x00" * 8)  # minimal data
+
             created_files.append(("test_minimal.mp4", "video/mp4"))
             print(f"✓ Created minimal MP4 placeholder: {mp4_path.name}")
         except Exception as e2:
             print(f"⚠️  Skipping MP4 creation: {e2}")
     except Exception as e:
         print(f"⚠️  Skipping MP4 creation: {e}")
-    
+
     # 6. Create a WebP image (1x1 pixel)
     try:
         from PIL import Image
-        
+
         webp_path = data_dir / "test_minimal.webp"
         # Create a tiny 1x1 blue pixel image
-        img = Image.new('RGB', (1, 1), color='blue')
-        img.save(webp_path, 'WEBP')
+        img = Image.new("RGB", (1, 1), color="blue")
+        img.save(webp_path, "WEBP")
         created_files.append(("test_minimal.webp", "image/webp"))
         print(f"✓ Created minimal WebP: {webp_path.name}")
     except ImportError:
         print("⚠️  Skipping WebP creation (PIL WebP support not available)")
     except Exception as e:
         print(f"⚠️  Skipping WebP creation: {e}")
-    
+
     return created_files
 
 
@@ -1016,7 +1020,7 @@ def main():
     # Ensure data directory exists
     data_dir = Path(__file__).parent / "data"
     data_dir.mkdir(exist_ok=True)
-    
+
     # Wipe the data directory
     for file in data_dir.glob("*"):
         try:

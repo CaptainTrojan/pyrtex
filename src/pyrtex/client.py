@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class Job(Generic[T]):
-
     """
     Manages the configuration, submission, and result retrieval for a
     Vertex AI Batch Prediction Job.
@@ -90,9 +89,7 @@ class Job(Generic[T]):
             msg1 = "Failed to initialize GCP clients. "
             msg2 = "Please ensure you are authenticated. "
             msg3 = "Run 'gcloud auth application-default login' in your terminal. "
-            raise ConfigurationError(
-                msg1 + msg2 + msg3 + f"Original error: {e}"
-            ) from e
+            raise ConfigurationError(msg1 + msg2 + msg3 + f"Original error: {e}") from e
 
     def _resolve_infra_config(self):
         """Fills in missing infrastructure config values with sensible defaults."""
@@ -107,9 +104,7 @@ class Job(Generic[T]):
             project_id = self.config.project_id
             self.config.gcs_bucket_name = f"pyrtex-assets-{project_id}"
             bucket_name = self.config.gcs_bucket_name
-            logger.info(
-                f"GCS bucket not specified, using default: '{bucket_name}'"
-            )
+            logger.info(f"GCS bucket not specified, using default: '{bucket_name}'")
         if not self.config.bq_dataset_id:
             self.config.bq_dataset_id = "pyrtex_results"
             dataset_id = self.config.bq_dataset_id
@@ -128,9 +123,7 @@ class Job(Generic[T]):
         except NotFound:
             bucket_name = self.config.gcs_bucket_name
             location = self.config.location
-            logger.info(
-                f"Creating GCS bucket '{bucket_name}' in {location}..."
-            )
+            logger.info(f"Creating GCS bucket '{bucket_name}' in {location}...")
             bucket = self._storage_client.create_bucket(
                 self.config.gcs_bucket_name, location=self.config.location
             )
@@ -176,7 +169,7 @@ class Job(Generic[T]):
         """Uploads a local file or bytes to GCS and returns its URI and mime type."""
         bucket = self._storage_client.bucket(self.config.gcs_bucket_name)
         blob = bucket.blob(gcs_path)
-        
+
         # Improved MIME type detection with only Gemini-supported types
         if isinstance(source, bytes):
             # For bytes, we can't detect extension, so default to text/plain
@@ -184,60 +177,56 @@ class Job(Generic[T]):
         else:
             source_path = Path(source)
             ext = source_path.suffix.lower()
-            
+
             # Map file extensions to Gemini-supported MIME types only
             # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini
             gemini_supported_types = {
                 # Text files - all map to text/plain
-                '.txt': 'text/plain',
-                '.yaml': 'text/plain',
-                '.yml': 'text/plain',
-                '.json': 'text/plain',  # JSON files are text, not application/json
-                '.xml': 'text/plain',
-                '.csv': 'text/plain',
-                '.tsv': 'text/plain',
-                '.md': 'text/plain',
-                '.rst': 'text/plain',
-                '.log': 'text/plain',
-                '.ini': 'text/plain',
-                '.cfg': 'text/plain',
-                '.conf': 'text/plain',
-                '.py': 'text/plain',
-                '.js': 'text/plain',
-                '.css': 'text/plain',
-                '.html': 'text/plain',
-                '.htm': 'text/plain',
-                '.sql': 'text/plain',
-                '.sh': 'text/plain',
-                '.bat': 'text/plain',
-                '.ps1': 'text/plain',
-                
+                ".txt": "text/plain",
+                ".yaml": "text/plain",
+                ".yml": "text/plain",
+                ".json": "text/plain",  # JSON files are text, not application/json
+                ".xml": "text/plain",
+                ".csv": "text/plain",
+                ".tsv": "text/plain",
+                ".md": "text/plain",
+                ".rst": "text/plain",
+                ".log": "text/plain",
+                ".ini": "text/plain",
+                ".cfg": "text/plain",
+                ".conf": "text/plain",
+                ".py": "text/plain",
+                ".js": "text/plain",
+                ".css": "text/plain",
+                ".html": "text/plain",
+                ".htm": "text/plain",
+                ".sql": "text/plain",
+                ".sh": "text/plain",
+                ".bat": "text/plain",
+                ".ps1": "text/plain",
                 # PDF files
-                '.pdf': 'application/pdf',
-                
+                ".pdf": "application/pdf",
                 # Image files
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.webp': 'image/webp',
-                
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
                 # Audio files
-                '.mp3': 'audio/mp3',
-                '.mpeg': 'audio/mpeg',
-                '.wav': 'audio/wav',
-                
+                ".mp3": "audio/mp3",
+                ".mpeg": "audio/mpeg",
+                ".wav": "audio/wav",
                 # Video files
-                '.mov': 'video/mov',
-                '.mp4': 'video/mp4',
-                '.mpeg': 'video/mpeg',
-                '.mpg': 'video/mpg',
-                '.avi': 'video/avi',
-                '.wmv': 'video/wmv',
-                '.flv': 'video/flv'
+                ".mov": "video/mov",
+                ".mp4": "video/mp4",
+                ".mpeg": "video/mpeg",
+                ".mpg": "video/mpg",
+                ".avi": "video/avi",
+                ".wmv": "video/wmv",
+                ".flv": "video/flv",
             }
-            
+
             # Use our mapping if available, otherwise default to text/plain for unknown extensions
-            mime_type = gemini_supported_types.get(ext, 'text/plain')
+            mime_type = gemini_supported_types.get(ext, "text/plain")
 
         if isinstance(source, bytes):
             blob.upload_from_string(source, content_type=mime_type)
@@ -249,25 +238,27 @@ class Job(Generic[T]):
     def _get_flattened_schema(self) -> dict:
         """Generate a flattened JSON schema without $ref references for BigQuery compatibility."""
         schema = self.output_schema.model_json_schema()
-        
+
         # If there are no $defs, return as-is
-        if '$defs' not in schema:
+        if "$defs" not in schema:
             return schema
-        
+
         # Flatten the schema by inlining all $ref references
-        defs = schema.pop('$defs', {})
-        
+        defs = schema.pop("$defs", {})
+
         def resolve_refs(obj):
             if isinstance(obj, dict):
-                if '$ref' in obj:
-                    ref_path = obj['$ref']
-                    if ref_path.startswith('#/$defs/'):
-                        def_name = ref_path.replace('#/$defs/', '')
+                if "$ref" in obj:
+                    ref_path = obj["$ref"]
+                    if ref_path.startswith("#/$defs/"):
+                        def_name = ref_path.replace("#/$defs/", "")
                         if def_name in defs:
                             # Get the resolved definition
                             resolved = resolve_refs(defs[def_name].copy())
                             # Preserve any properties from the original object (like description)
-                            original_props = {k: v for k, v in obj.items() if k != '$ref'}
+                            original_props = {
+                                k: v for k, v in obj.items() if k != "$ref"
+                            }
                             resolved.update(original_props)
                             return resolved
                         else:
@@ -284,7 +275,7 @@ class Job(Generic[T]):
             else:
                 # Return primitive values as-is
                 return obj
-        
+
         return resolve_refs(schema)
 
     def _create_jsonl_payload(self) -> str:
@@ -349,9 +340,7 @@ class Job(Generic[T]):
                                         "Extracts structured information "
                                         "based on the schema."
                                     ),
-                                    "parameters": (
-                                        self._get_flattened_schema()
-                                    ),
+                                    "parameters": (self._get_flattened_schema()),
                                 }
                             ]
                         }
@@ -533,23 +522,33 @@ class Job(Generic[T]):
                 }
 
                 # Check status first for errors
-                if hasattr(row, 'status') and row.status and row.status != "{}":
+                if hasattr(row, "status") and row.status and row.status != "{}":
                     # Parse status for error information
                     try:
-                        status_dict = json.loads(row.status) if isinstance(row.status, str) else row.status
+                        status_dict = (
+                            json.loads(row.status)
+                            if isinstance(row.status, str)
+                            else row.status
+                        )
                         if "error" in status_dict:
                             error_info = status_dict["error"]
                             if isinstance(error_info, dict):
                                 error_msg = error_info.get("message", str(error_info))
                                 error_code = error_info.get("code", "")
-                                result_args["error"] = f"API Error {error_code}: {error_msg}"
+                                result_args["error"] = (
+                                    f"API Error {error_code}: {error_msg}"
+                                )
                             else:
                                 result_args["error"] = f"API Error: {error_info}"
                         else:
-                            result_args["error"] = f"Request failed with status: {row.status}"
+                            result_args["error"] = (
+                                f"Request failed with status: {row.status}"
+                            )
                     except (json.JSONDecodeError, TypeError):
-                        result_args["error"] = f"Request failed with status: {row.status}"
-                    
+                        result_args["error"] = (
+                            f"Request failed with status: {row.status}"
+                        )
+
                     yield BatchResult[T](**result_args)
                     continue
 
@@ -595,7 +594,9 @@ class Job(Generic[T]):
                         if isinstance(error_info, dict):
                             error_msg = error_info.get("message", str(error_info))
                             error_code = error_info.get("code", "")
-                            result_args["error"] = f"Response Error {error_code}: {error_msg}"
+                            result_args["error"] = (
+                                f"Response Error {error_code}: {error_msg}"
+                            )
                         else:
                             result_args["error"] = f"Response Error: {error_info}"
                     else:
@@ -698,17 +699,30 @@ class Job(Generic[T]):
     def _validate_enum_values(self):
         """Validates that enum values don't conflict with JSON boolean interpretation."""
         from enum import Enum
-        from typing import get_origin, get_args
-        
+        from typing import get_args, get_origin
+
         # Problematic enum values that can be interpreted as booleans
         PROBLEMATIC_VALUES = {
-            "yes", "no", "true", "false", 
-            "Yes", "No", "True", "False",
-            "YES", "NO", "TRUE", "FALSE",
-            "y", "n", "Y", "N",
-            "1", "0"
+            "yes",
+            "no",
+            "true",
+            "false",
+            "Yes",
+            "No",
+            "True",
+            "False",
+            "YES",
+            "NO",
+            "TRUE",
+            "FALSE",
+            "y",
+            "n",
+            "Y",
+            "N",
+            "1",
+            "0",
         }
-        
+
         def check_field_enums(field_type, field_name: str):
             """Recursively check field types for problematic enum values."""
             # Handle Union types (like Optional[Enum])
@@ -719,19 +733,21 @@ class Job(Generic[T]):
                     if arg is not type(None):  # Skip NoneType
                         check_field_enums(arg, field_name)
                 return
-            
+
             # Check if this is an enum class
             if isinstance(field_type, type) and issubclass(field_type, Enum):
                 for enum_member in field_type:
                     enum_value = enum_member.value
-                    if isinstance(enum_value, str) and enum_value.lower() in {v.lower() for v in PROBLEMATIC_VALUES}:
+                    if isinstance(enum_value, str) and enum_value.lower() in {
+                        v.lower() for v in PROBLEMATIC_VALUES
+                    }:
                         raise ValueError(
                             f"Enum value '{enum_value}' in field '{field_name}' of enum '{field_type.__name__}' "
                             f"conflicts with JSON boolean interpretation. "
                             f"Problematic values: {sorted(PROBLEMATIC_VALUES)}. "
                             f"Consider using values like 'recommend'/'not_recommend' instead of 'yes'/'no'."
                         )
-        
+
         # Check all fields in the output schema
         schema_fields = self.output_schema.model_fields
         for field_name, field_info in schema_fields.items():

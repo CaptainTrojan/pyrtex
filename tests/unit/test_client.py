@@ -89,6 +89,7 @@ class TestEnumValidation:
     def test_problematic_enum_values_rejected(self, mock_gcp_clients):
         """Test that problematic enum values are rejected during job initialization."""
         from enum import Enum
+
         from pydantic import BaseModel, Field
 
         class ProblematicEnum(str, Enum):
@@ -113,19 +114,21 @@ class TestEnumValidation:
     def test_various_problematic_enum_values(self, mock_gcp_clients):
         """Test that various problematic enum values are all caught."""
         from enum import Enum
+
         from pydantic import BaseModel, Field
 
         problematic_values = [
             ("yes", "no"),
-            ("true", "false"), 
+            ("true", "false"),
             ("YES", "NO"),
             ("True", "False"),
             ("y", "n"),
             ("Y", "N"),
-            ("1", "0")
+            ("1", "0"),
         ]
 
         for val1, val2 in problematic_values:
+
             class TestEnum(str, Enum):
                 OPTION1 = val1
                 OPTION2 = val2
@@ -141,11 +144,15 @@ class TestEnumValidation:
                 )
 
             error_msg = str(exc_info.value)
-            assert f"Enum value '{val1}'" in error_msg or f"Enum value '{val2}'" in error_msg
+            assert (
+                f"Enum value '{val1}'" in error_msg
+                or f"Enum value '{val2}'" in error_msg
+            )
 
     def test_safe_enum_values_accepted(self, mock_gcp_clients):
         """Test that safe enum values are accepted."""
         from enum import Enum
+
         from pydantic import BaseModel, Field
 
         class SafeEnum(str, Enum):
@@ -171,6 +178,7 @@ class TestEnumValidation:
         """Test that Optional[Enum] types are also validated."""
         from enum import Enum
         from typing import Optional
+
         from pydantic import BaseModel, Field
 
         class ProblematicEnum(str, Enum):
@@ -212,6 +220,7 @@ class TestEnumValidation:
         """Test that the validation works for direct enum fields."""
         from enum import Enum
         from typing import List
+
         from pydantic import BaseModel, Field
 
         class ProblematicEnum(str, Enum):
@@ -1388,7 +1397,7 @@ class TestSchemaFlattening:
         )
 
         flattened = job._get_flattened_schema()
-        
+
         # Should return the schema as-is since there are no $defs
         assert "$defs" not in flattened
         assert "properties" in flattened
@@ -1398,6 +1407,7 @@ class TestSchemaFlattening:
     def test_get_flattened_schema_with_refs(self, mock_gcp_clients):
         """Test schema flattening when there are $ref references."""
         from enum import Enum
+
         from pydantic import BaseModel, Field
 
         class TestEnum(str, Enum):
@@ -1415,12 +1425,12 @@ class TestSchemaFlattening:
         )
 
         flattened = job._get_flattened_schema()
-        
+
         # Should have inlined the enum definition
         assert "$defs" not in flattened
         assert "properties" in flattened
         assert "choice" in flattened["properties"]
-        
+
         # The choice field should have the enum values directly
         choice_field = flattened["properties"]["choice"]
         assert "enum" in choice_field
@@ -1430,6 +1440,7 @@ class TestSchemaFlattening:
     def test_get_flattened_schema_preserves_descriptions(self, mock_gcp_clients):
         """Test that schema flattening preserves field descriptions."""
         from enum import Enum
+
         from pydantic import BaseModel, Field
 
         class TestEnum(str, Enum):
@@ -1446,7 +1457,7 @@ class TestSchemaFlattening:
         )
 
         flattened = job._get_flattened_schema()
-        
+
         # Should preserve the custom description
         enum_field = flattened["properties"]["enum_field"]
         assert enum_field["description"] == "Custom enum description"
@@ -1456,6 +1467,7 @@ class TestSchemaFlattening:
         """Test schema flattening with list types containing refs."""
         from enum import Enum
         from typing import List
+
         from pydantic import BaseModel, Field
 
         class TestEnum(str, Enum):
@@ -1472,13 +1484,13 @@ class TestSchemaFlattening:
         )
 
         flattened = job._get_flattened_schema()
-        
+
         # Should have flattened the list items
         assert "$defs" not in flattened
         enum_list_field = flattened["properties"]["enum_list"]
         assert enum_list_field["type"] == "array"
         assert "items" in enum_list_field
-        
+
         # The items should have the enum values inlined
         items = enum_list_field["items"]
         assert "enum" in items
@@ -1495,21 +1507,22 @@ class TestSchemaFlattening:
 
         # Manually create a schema with a broken $ref for testing
         broken_schema = {
-            "properties": {
-                "broken_field": {"$ref": "#/$defs/NonExistentType"}
-            },
-            "$defs": {}
+            "properties": {"broken_field": {"$ref": "#/$defs/NonExistentType"}},
+            "$defs": {},
         }
-        
+
         # Monkey patch the schema generation to return our broken schema
         original_method = job.output_schema.model_json_schema
         job.output_schema.model_json_schema = lambda: broken_schema
-        
+
         try:
             flattened = job._get_flattened_schema()
-            
+
             # Should return the broken $ref as-is since it can't be resolved
-            assert flattened["properties"]["broken_field"]["$ref"] == "#/$defs/NonExistentType"
+            assert (
+                flattened["properties"]["broken_field"]["$ref"]
+                == "#/$defs/NonExistentType"
+            )
         finally:
             # Restore the original method
             job.output_schema.model_json_schema = original_method
@@ -1528,16 +1541,19 @@ class TestSchemaFlattening:
                 "external_field": {"$ref": "http://example.com/schema#/SomeType"}
             }
         }
-        
+
         # Monkey patch the schema generation
         original_method = job.output_schema.model_json_schema
         job.output_schema.model_json_schema = lambda: external_ref_schema
-        
+
         try:
             flattened = job._get_flattened_schema()
-            
+
             # Should leave external refs unchanged
-            assert flattened["properties"]["external_field"]["$ref"] == "http://example.com/schema#/SomeType"
+            assert (
+                flattened["properties"]["external_field"]["$ref"]
+                == "http://example.com/schema#/SomeType"
+            )
         finally:
             # Restore the original method
             job.output_schema.model_json_schema = original_method
@@ -1554,25 +1570,28 @@ class TestSchemaFlattening:
         non_defs_ref_schema = {
             "properties": {
                 "anchor_field": {"$ref": "#/definitions/SomeType"},
-                "normal_field": {"type": "string"}
+                "normal_field": {"type": "string"},
             },
             "$defs": {
                 "SomeDefType": {
                     "type": "object",
-                    "properties": {"test": {"type": "string"}}
+                    "properties": {"test": {"type": "string"}},
                 }
-            }
+            },
         }
-        
+
         # Monkey patch the schema generation
         original_method = job.output_schema.model_json_schema
         job.output_schema.model_json_schema = lambda: non_defs_ref_schema
-        
+
         try:
             flattened = job._get_flattened_schema()
-            
+
             # Should leave non-$defs refs unchanged (this exercises line 277: return obj)
-            assert flattened["properties"]["anchor_field"]["$ref"] == "#/definitions/SomeType"
+            assert (
+                flattened["properties"]["anchor_field"]["$ref"]
+                == "#/definitions/SomeType"
+            )
             # Should not have $defs in the flattened schema
             assert "$defs" not in flattened
         finally:
@@ -1597,22 +1616,24 @@ class TestSchemaFlattening:
                             "type": "array",
                             "items": {
                                 "$ref": "http://external.com/schema#/Type"  # External ref - should hit line 277
-                            }
+                            },
                         }
-                    }
+                    },
                 }
             }
         }
-        
+
         # Monkey patch the schema generation
         original_method = job.output_schema.model_json_schema
         job.output_schema.model_json_schema = lambda: complex_schema
-        
+
         try:
             flattened = job._get_flattened_schema()
-            
+
             # Should preserve external refs in nested structures
-            items_ref = flattened["properties"]["level1"]["properties"]["level2"]["items"]["$ref"]
+            items_ref = flattened["properties"]["level1"]["properties"]["level2"][
+                "items"
+            ]["$ref"]
             assert items_ref == "http://external.com/schema#/Type"
         finally:
             # Restore the original method
