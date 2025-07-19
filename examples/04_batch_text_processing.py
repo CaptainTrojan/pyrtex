@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Example 4: Batch Real Estate Analysis with PyRTex
+Example 4: Batch Real Estate Analysis with PyRTex (Enum Example)
 
 This example demonstrates processing multiple real estate files (YAML and JSON)
-as independent requests in a single batch job to extract common property features.
+as independent requests in a single batch job to extract property information.
+It showcases using Python enums to constrain model outputs to specific values.
 
 We'll analyze 4 different real estate properties:
 - luxury_condo.yaml (San Francisco condo listing)
@@ -12,10 +13,11 @@ We'll analyze 4 different real estate properties:
 - apartment_complex.json (Multi-family residential complex)
 
 Each file represents a different property and will be processed independently
-to extract standardized real estate information.
+to extract standardized real estate information with enum constraints.
 """
 
 import json
+from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -23,54 +25,41 @@ from pydantic import BaseModel, Field
 from pyrtex import Job
 
 
+class PropertyType(str, Enum):
+    """Enum for property types."""
+    HOUSE = "house"
+    CONDO = "condo"
+    APARTMENT = "apartment"
+    OFFICE = "office"
+    RETAIL = "retail"
+    TOWNHOUSE = "townhouse"
+    LAND = "land"
+
+
+class InvestmentGrade(str, Enum):
+    """Enum for investment attractiveness."""
+    EXCELLENT = "excellent"
+    GOOD = "good"
+    FAIR = "fair"
+    POOR = "poor"
+    
+
 class FileInput(BaseModel):
     """Input schema for text file processing."""
     file_path: str = Field(description="Path to the text file to process")
 
 
 class RealEstateAnalysis(BaseModel):
-    """Standardized real estate analysis output."""
+    """Minimized real estate analysis with enum constraints."""
     
-    # Basic Property Info
-    property_type: str = Field(description="Type of property (condo, house, office, apartment complex, etc.)")
-    address: str = Field(description="Full property address")
-    city: str = Field(description="City where property is located")
-    state: str = Field(description="State where property is located")
-    
-    # Financial Information
+    # Basic Property Info (with enum constraint)
+    property_type: PropertyType = Field(description="Type of property")
     listing_price: int = Field(description="Listing/asking price in dollars")
-    price_per_sqft: float = Field(description="Price per square foot")
-    annual_property_taxes: int = Field(description="Annual property taxes in dollars")
-    
-    # Size and Layout
-    total_square_feet: int = Field(description="Total square footage")
-    bedrooms: int = Field(description="Number of bedrooms (0 if commercial)")
-    bathrooms: float = Field(description="Number of bathrooms (0 if commercial)")
-    
-    # Property Details
-    year_built: int = Field(description="Year the property was built")
-    parking_spaces: int = Field(description="Number of parking spaces available")
-    
-    # Market Information
-    days_on_market: int = Field(description="How many days the property has been listed")
-    property_condition: str = Field(description="Overall condition (excellent/good/fair/needs work)")
-    
-    # Investment Metrics
-    estimated_monthly_income: int = Field(description="Estimated monthly rental income (0 if owner-occupied)")
-    investment_grade: str = Field(description="Investment attractiveness (excellent/good/fair/poor)")
-    
-    # Key Features (top 3 most important)
-    key_feature_1: str = Field(description="Most important property feature")
-    key_feature_2: str = Field(description="Second most important property feature") 
-    key_feature_3: str = Field(description="Third most important property feature")
-    
-    # Market Assessment
-    market_competitiveness: str = Field(description="How competitive this property is (very competitive/competitive/average/overpriced)")
-    target_buyer_type: str = Field(description="Most likely buyer type (investor/family/professional/developer)")
+    investment_grade: InvestmentGrade = Field(description="Investment attractiveness grade")
 
 
 def main():
-    """Process real estate files to extract standardized property information."""
+    """Process real estate files to extract property information with enum constraints."""
     
     # Get the data directory
     data_dir = Path(__file__).parent / "data"
@@ -97,7 +86,7 @@ def main():
         print("\n💡 Run generate_sample_data.py first to create the sample files.")
         return
     
-    print("🏠 Processing real estate property files...")
+    print("🏠 Processing real estate property files with enum constraints...")
     print("📁 Properties to analyze:")
     for filename in files_to_process:
         print(f"   • {filename}")
@@ -107,33 +96,20 @@ def main():
         model="gemini-2.0-flash-lite-001",
         output_schema=RealEstateAnalysis,
         prompt_template="""
-You are a professional real estate analyst. Analyze the provided property data file and extract standardized real estate information.
+You are a professional real estate analyst. Analyze the provided property data file and extract key information using the specified enum constraints.
 
 The file contains detailed information about a real estate property. Your task is to extract and standardize the following information:
 
-**Basic Property Information:**
-- Property type (condo, house, office building, apartment complex, etc.)
-- Complete address, city, and state
-- Total square footage and layout details
+**Property Type**: Must be one of: house, condo, apartment, office, retail, townhouse, land
+**Listing Price**: The asking price in dollars (whole number)
+**Investment Grade**: Must be one of: excellent, good, fair, poor
 
-**Financial Analysis:**
-- Listing/asking price and price per square foot
-- Property taxes and other carrying costs
-- Estimated rental income potential
-
-**Physical Characteristics:**
-- Year built, bedrooms, bathrooms, parking
-- Overall condition and key features
-
-**Market Analysis:**
-- Time on market and competitiveness
-- Target buyer demographic
-- Investment potential
+Focus on these three key data points and ensure the property type and investment grade match the allowed enum values exactly.
 
 **Property file to analyze:**
 {{ text }}
 
-Please extract concrete data points where available. If information is missing or unclear, make reasonable estimates based on property type and location. Focus on providing actionable real estate insights.
+Please extract concrete data points where available. If information is missing, make reasonable estimates based on the property details provided.
 """,
     )
     
@@ -148,7 +124,7 @@ Please extract concrete data points where available. If information is missing o
     
     # Submit and wait for results
     print("\n🚀 Submitting batch job to Gemini...")
-    print("⏳ Analyzing properties (this may take a few moments)...")
+    print("⏳ Analyzing properties with enum constraints (this may take a few moments)...")
     
     try:
         results = list(job.submit().wait().results())
@@ -156,54 +132,29 @@ Please extract concrete data points where available. If information is missing o
         print(f"\n✅ Batch analysis completed! Analyzed {len(results)} properties.")
         
         # Display results for each property
-        print("\n" + "="*80)
-        print("🏘️  REAL ESTATE PORTFOLIO ANALYSIS")
-        print("="*80)
+        print("\n" + "="*60)
+        print("🏘️  REAL ESTATE ANALYSIS WITH ENUM CONSTRAINTS")
+        print("="*60)
         
-        # Collect all analyses for comparison
+        # Collect all analyses for summary
         all_properties = {}
         total_value = 0
-        total_sqft = 0
         
         for result in results:
             print(f"\n🏠 Property: {result.request_key}")
-            print("-" * 50)
+            print("-" * 40)
             
             if result.was_successful:
                 analysis = result.output
                 all_properties[result.request_key] = analysis
                 
-                # Add to totals
                 total_value += analysis.listing_price
-                total_sqft += analysis.total_square_feet
                 
-                print(f"📍 Address: {analysis.address}, {analysis.city}, {analysis.state}")
-                print(f"🏗️  Type: {analysis.property_type} (Built: {analysis.year_built})")
-                print(f"� Size: {analysis.total_square_feet:,} sq ft")
-                
-                if analysis.bedrooms > 0:
-                    print(f"�️  Layout: {analysis.bedrooms} bed, {analysis.bathrooms} bath")
-                
-                print(f"� Price: ${analysis.listing_price:,} (${analysis.price_per_sqft:.0f}/sq ft)")
-                print(f"🏛️  Taxes: ${analysis.annual_property_taxes:,}/year")
-                print(f"🚗 Parking: {analysis.parking_spaces} spaces")
-                print(f"📅 Market: {analysis.days_on_market} days listed")
-                print(f"🏥 Condition: {analysis.property_condition}")
-                
-                if analysis.estimated_monthly_income > 0:
-                    annual_income = analysis.estimated_monthly_income * 12
-                    cap_rate = (annual_income / analysis.listing_price) * 100
-                    print(f"💵 Income: ${analysis.estimated_monthly_income:,}/month (${annual_income:,}/year)")
-                    print(f"📊 Cap Rate: {cap_rate:.2f}%")
-                
+                print(f"🏗️  Property Type: {analysis.property_type}")
+                print(f"   Type class: {type(analysis.property_type)}")
+                print(f"💰 Listing Price: ${analysis.listing_price:,}")
                 print(f"⭐ Investment Grade: {analysis.investment_grade}")
-                print(f"🎯 Target Buyer: {analysis.target_buyer_type}")
-                print(f"🏆 Competitiveness: {analysis.market_competitiveness}")
-                
-                print("🔑 Key Features:")
-                print(f"   1. {analysis.key_feature_1}")
-                print(f"   2. {analysis.key_feature_2}")
-                print(f"   3. {analysis.key_feature_3}")
+                print(f"   Grade class: {type(analysis.investment_grade)}")
                 
                 # Token usage
                 if result.usage_metadata:
@@ -215,43 +166,32 @@ Please extract concrete data points where available. If information is missing o
         
         # Portfolio summary
         if len(all_properties) > 1:
-            print(f"\n" + "="*80)
-            print("� PORTFOLIO SUMMARY")
-            print("="*80)
+            print(f"\n" + "="*60)
+            print("📊 PORTFOLIO SUMMARY")
+            print("="*60)
             
             print(f"🏘️  Total Properties: {len(all_properties)}")
             print(f"💰 Total Portfolio Value: ${total_value:,}")
-            print(f"� Total Square Footage: {total_sqft:,}")
             
-            if total_sqft > 0:
-                avg_price_psf = total_value / total_sqft
-                print(f"📊 Average Price/SqFt: ${avg_price_psf:.0f}")
-            
-            # Property type distribution
+            # Property type distribution (enum values)
             property_types = [prop.property_type for prop in all_properties.values()]
-            type_counts = {ptype: property_types.count(ptype) for ptype in set(property_types)}
+            type_counts = {}
+            for ptype in property_types:
+                type_str = ptype.value if hasattr(ptype, 'value') else str(ptype)
+                type_counts[type_str] = type_counts.get(type_str, 0) + 1
             print(f"🏗️  Property Types: {type_counts}")
             
-            # Investment grade distribution
+            # Investment grade distribution (enum values)
             investment_grades = [prop.investment_grade for prop in all_properties.values()]
-            grade_counts = {grade: investment_grades.count(grade) for grade in set(investment_grades)}
+            grade_counts = {}
+            for grade in investment_grades:
+                grade_str = grade.value if hasattr(grade, 'value') else str(grade)
+                grade_counts[grade_str] = grade_counts.get(grade_str, 0) + 1
             print(f"⭐ Investment Grades: {grade_counts}")
-            
-            # Market competitiveness
-            competitiveness = [prop.market_competitiveness for prop in all_properties.values()]
-            comp_counts = {comp: competitiveness.count(comp) for comp in set(competitiveness)}
-            print(f"🏆 Market Competitiveness: {comp_counts}")
-            
-            # Calculate potential rental income
-            total_monthly_income = sum(prop.estimated_monthly_income for prop in all_properties.values())
-            if total_monthly_income > 0:
-                annual_income = total_monthly_income * 12
-                portfolio_cap_rate = (annual_income / total_value) * 100
-                print(f"💵 Total Monthly Income: ${total_monthly_income:,}")
-                print(f"📊 Portfolio Cap Rate: {portfolio_cap_rate:.2f}%")
         
-        print(f"\n🎉 Real estate analysis complete! Processed {len(results)} independent property files.")
-        print("💡 Each file was analyzed separately to extract standardized real estate metrics.")
+        print(f"\n🎉 Real estate analysis complete! Processed {len(results)} properties.")
+        print("💡 Each property was analyzed using enum constraints to ensure consistent categorization.")
+        print("🔧 Enum types help constrain model outputs to predefined, valid values.")
         
     except Exception as e:
         print(f"\n❌ Error during batch processing: {e}")

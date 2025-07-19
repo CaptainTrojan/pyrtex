@@ -243,6 +243,43 @@ class Job(Generic[T]):
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 
+    def _get_flattened_schema(self) -> dict:
+        """Generate a flattened JSON schema without $ref references for BigQuery compatibility."""
+        schema = self.output_schema.model_json_schema()
+        
+        # If there are no $defs, return as-is
+        if '$defs' not in schema:
+            return schema
+        
+        # Flatten the schema by inlining all $ref references
+        defs = schema.pop('$defs', {})
+        
+        def resolve_refs(obj):
+            if isinstance(obj, dict):
+                if '$ref' in obj:
+                    ref_path = obj['$ref']
+                    if ref_path.startswith('#/$defs/'):
+                        def_name = ref_path.replace('#/$defs/', '')
+                        if def_name in defs:
+                            resolved = resolve_refs(defs[def_name].copy())
+                            return resolved
+                        else:
+                            # If ref not found, return the ref as-is (shouldn't happen)
+                            return obj
+                    else:
+                        return obj
+                else:
+                    # Recursively resolve refs in all dictionary values
+                    return {k: resolve_refs(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                # Recursively resolve refs in all list items
+                return [resolve_refs(item) for item in obj]
+            else:
+                # Return primitive values as-is
+                return obj
+        
+        return resolve_refs(schema)
+
     def _create_jsonl_payload(self) -> str:
         """Processes all requests into a JSONL string, uploading files as needed."""
         jsonl_lines = []
@@ -306,7 +343,7 @@ class Job(Generic[T]):
                                         "based on the schema."
                                     ),
                                     "parameters": (
-                                        self.output_schema.model_json_schema()
+                                        self._get_flattened_schema()
                                     ),
                                 }
                             ]
