@@ -58,9 +58,9 @@ Processing multiple files together in a single request.
 - Property + business card matching
 
 ### 7. Multi-Format Processing (`07_multi_format_processing.py`)
-Processing different file types (images, PDFs, text) in one batch.
+Processing different file types (images, PDFs, text, audio, video) in one batch.
 - Mixed file type support
-- Images, PDFs, YAML, JSON
+- Images, PDFs, YAML, JSON, audio, video
 - Unified data extraction
 
 ## Key Concepts
@@ -89,6 +89,8 @@ for result in job.submit().wait().results():
 - File paths (Path objects or strings)
 - Images (PNG, JPEG, WebP)
 - PDFs
+- Audio files (WAV, MP3, etc.)
+- Video files (MP4, etc.)
 - Text files (YAML, JSON, etc.)
 - Multiple files per request
 - Mixed file types in batch
