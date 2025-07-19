@@ -51,7 +51,7 @@ class Analysis(BaseModel):
     key_points: list[str]
 
 # Create a job
-job = Job[Analysis](
+job = Job(
     model="gemini-2.0-flash-lite-001",
     output_schema=Analysis,
     prompt_template="Analyze this text: {{ content }}",
@@ -98,13 +98,64 @@ for result in job.results():
 
 ## ⚙️ Configuration
 
-For production use, set your GCP project:
+### For Simulation Mode (No GCP Required)
+```python
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt",
+    simulation_mode=True  # No GCP setup needed
+)
+```
 
+### For Production (GCP Required)
+
+Set your GCP project ID:
 ```bash
 export GOOGLE_PROJECT_ID="your-project-id"
 ```
 
-Then use `simulation_mode=False` for real processing.
+Or configure directly in code:
+```python
+from pyrtex.config import InfrastructureConfig
+
+config = InfrastructureConfig(project_id="your-project-id")
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt",
+    config=config,
+    simulation_mode=False
+)
+```
+
+Then authenticate with GCP:
+```bash
+gcloud auth application-default login
+```
+
+### Troubleshooting
+
+**Error: "Project was not passed and could not be determined from the environment"**
+
+This happens when GCP project ID is not set. You have three options:
+
+1. **Use simulation mode** (recommended for testing):
+   ```python
+   simulation_mode=True  # No GCP setup needed
+   ```
+
+2. **Set environment variable**:
+   ```bash
+   export GOOGLE_PROJECT_ID="your-project-id"
+   ```
+
+3. **Configure in code**:
+   ```python
+   from pyrtex.config import InfrastructureConfig
+   config = InfrastructureConfig(project_id="your-project-id")
+   job = Job(..., config=config)
+   ```
 
 ## 📚 Examples
 
@@ -181,3 +232,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Issues**: [GitHub Issues](https://github.com/CaptainTrojan/pyrtex/issues)
 - **Examples**: Check the `examples/` directory
 - **Testing**: Use `simulation_mode=True` for development
+
+### Common Issues
+
+**"Project was not passed and could not be determined from the environment"**
+- Solution: Set `GOOGLE_PROJECT_ID` environment variable or use `simulation_mode=True`
+
+**"Failed to initialize GCP clients"**  
+- Solution: Run `gcloud auth application-default login` or use simulation mode
+
+**Examples not working**
+- Solution: Run `python generate_sample_data.py` first to create sample files
