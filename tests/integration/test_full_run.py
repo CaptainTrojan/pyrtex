@@ -715,7 +715,6 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True,
         )
 
         # Test cases: (extension, expected_mime_type, file_content)
@@ -765,7 +764,6 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True,
         )
 
         test_bytes = b"Some test content"
@@ -783,7 +781,6 @@ class TestMimeTypeDetection:
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
             prompt_template="Analyze: {{ text }}",
-            simulation_mode=True,
         )
 
         # List of Gemini-supported MIME types (as of July 2025)

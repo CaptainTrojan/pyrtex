@@ -63,9 +63,13 @@ class TestJobInitialization:
 
     def test_project_id_discovery_failure(self, mocker):
         """Test ConfigurationError when project ID cannot be discovered."""
+        # Mock successful authentication but with no project ID discovery
+        mock_credentials = Mock()
+        mocker.patch("google.auth.default", return_value=(mock_credentials, None))
+        
+        # Mock storage client with no project ID
         mock_storage_client = Mock()
         mock_storage_client.project = None
-
         mocker.patch("google.cloud.storage.Client", return_value=mock_storage_client)
         mocker.patch("google.cloud.bigquery.Client")
         mocker.patch("google.cloud.aiplatform.init")

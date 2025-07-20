@@ -8,13 +8,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class InfrastructureConfig(BaseSettings):
     """
-    Configuration for GCP resources.
+    Configuration for GCP resources and authentication.
 
     Pyrtex will use sensible defaults. Use this class only when you need to
     override the default GCS bucket or BigQuery dataset for compliance or
-    billing reasons.
+    billing reasons, or when you need to specify custom authentication.
 
-    Values can be set via environment variables (e.g., `GOOGLE_PROJECT_ID`).
+    Authentication Options (in order of precedence):
+    1. service_account_key_json: JSON string of service account key
+    2. service_account_key_path: Path to service account key file
+    3. Application Default Credentials (gcloud auth)
+
+    Values can be set via environment variables (e.g., `GOOGLE_PROJECT_ID`,
+    `PYRTEX_SERVICE_ACCOUNT_KEY_JSON`, `GOOGLE_APPLICATION_CREDENTIALS`).
     """
 
     # By using pydantic-settings, this can be automatically loaded from env vars
@@ -38,6 +44,12 @@ class InfrastructureConfig(BaseSettings):
     gcs_file_retention_days: int = 1
     bq_table_retention_days: int = 1
 
+    # Authentication options (new)
+    # Path to service account key file (set via GOOGLE_APPLICATION_CREDENTIALS)
+    service_account_key_path: Optional[str] = Field(default=None)
+    # Service account key as JSON string (set via PYRTEX_SERVICE_ACCOUNT_KEY_JSON)
+    service_account_key_json: Optional[str] = Field(default=None)
+
     def __init__(self, **data):
         # Load from environment variables first
         env_values = {}
@@ -53,9 +65,39 @@ class InfrastructureConfig(BaseSettings):
         if google_location and "location" not in data:
             env_values["location"] = google_location
 
+        # Check for service account authentication
+        service_account_key_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if (
+            service_account_key_path
+            and "service_account_key_path" not in data
+            and self._is_service_account_file(service_account_key_path)
+        ):
+            env_values["service_account_key_path"] = service_account_key_path
+
+        service_account_key_json = os.getenv("PYRTEX_SERVICE_ACCOUNT_KEY_JSON")
+        if service_account_key_json and "service_account_key_json" not in data:
+            env_values["service_account_key_json"] = service_account_key_json
+
         # Merge environment values with explicit data (explicit takes precedence)
         merged_data = {**env_values, **data}
         super().__init__(**merged_data)
+
+    def _is_service_account_file(self, file_path: str) -> bool:
+        """Check if a file is a service account key file (not user ADC file)."""
+        try:
+            import json
+
+            with open(file_path, "r") as f:
+                data = json.load(f)
+
+            # Service account files have these fields, user ADC files don't
+            required_fields = {"type", "client_email", "private_key", "token_uri"}
+            return (
+                required_fields.issubset(data.keys())
+                and data.get("type") == "service_account"
+            )
+        except (json.JSONDecodeError, FileNotFoundError, KeyError):
+            return False
 
 
 class GenerationConfig(BaseModel):

@@ -71,13 +71,27 @@ class Job(Generic[T]):
         self._initialize_gcp()
 
     def _initialize_gcp(self):
-        """Initializes GCP clients and resolves final configuration."""
+        """Initializes GCP clients with flexible authentication and resolves final configuration."""
+        if self.simulation_mode:
+            logger.info("Simulation mode enabled. Using mock GCP clients.")
+            return
+
         try:
-            self._storage_client = storage.Client(project=self.config.project_id)
-            self._bigquery_client = bigquery.Client(project=self.config.project_id)
-            aiplatform.init(
-                project=self.config.project_id, location=self.config.location
+            credentials = self._get_credentials()
+
+            # Initialize clients with credentials
+            self._storage_client = storage.Client(
+                project=self.config.project_id, credentials=credentials
             )
+            self._bigquery_client = bigquery.Client(
+                project=self.config.project_id, credentials=credentials
+            )
+            aiplatform.init(
+                project=self.config.project_id,
+                location=self.config.location,
+                credentials=credentials,
+            )
+
             self._resolve_infra_config()
             project_id = self.config.project_id
             location = self.config.location
@@ -85,10 +99,141 @@ class Job(Generic[T]):
                 f"Pyrtex initialized for project '{project_id}' in '{location}'."
             )
         except Exception as e:
-            msg1 = "Failed to initialize GCP clients. "
-            msg2 = "Please ensure you are authenticated. "
-            msg3 = "Run 'gcloud auth application-default login' in your terminal. "
-            raise ConfigurationError(msg1 + msg2 + msg3 + f"Original error: {e}") from e
+            self._handle_authentication_error(e)
+
+    def _get_credentials(self):
+        """Get Google Cloud credentials using various methods."""
+        import os
+
+        # Method 1: Service account key JSON string (environment variable)
+        if self.config.service_account_key_json:
+            logger.info("Using service account credentials from JSON string")
+            return self._credentials_from_json_string(
+                self.config.service_account_key_json
+            )
+
+        # Method 2: Service account key file path (explicit service account file)
+        elif (
+            self.config.service_account_key_path
+            and os.path.exists(self.config.service_account_key_path)
+            and self._is_service_account_file(self.config.service_account_key_path)
+        ):
+            logger.info(
+                f"Using service account credentials from file: {self.config.service_account_key_path}"
+            )
+            return self._credentials_from_file(self.config.service_account_key_path)
+
+        # Method 3: Application Default Credentials (covers both gcloud user login and service accounts)
+        else:
+            logger.info("Using Application Default Credentials")
+            return self._credentials_from_adc()
+
+    def _is_service_account_file(self, file_path: str) -> bool:
+        """Check if a file is a service account key file (not user ADC file)."""
+        try:
+            import json
+
+            with open(file_path, "r") as f:
+                data = json.load(f)
+
+            # Service account files have these fields, user ADC files don't
+            required_fields = {"type", "client_email", "private_key", "token_uri"}
+            return (
+                required_fields.issubset(data.keys())
+                and data.get("type") == "service_account"
+            )
+        except (json.JSONDecodeError, FileNotFoundError, KeyError):
+            return False
+
+    def _credentials_from_json_string(self, json_string: str):
+        """Create credentials from JSON string."""
+        import json
+
+        from google.oauth2 import service_account
+
+        try:
+            key_info = json.loads(json_string)
+            credentials = service_account.Credentials.from_service_account_info(
+                key_info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+
+            # Auto-discover project ID if not set
+            if not self.config.project_id and hasattr(credentials, "project_id"):
+                self.config.project_id = credentials.project_id
+
+            return credentials
+        except json.JSONDecodeError as e:
+            raise ConfigurationError(f"Invalid JSON in service account key: {e}")
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to load service account from JSON string: {e}"
+            )
+
+    def _credentials_from_file(self, file_path: str):
+        """Create credentials from service account file."""
+        from google.oauth2 import service_account
+
+        try:
+            credentials = service_account.Credentials.from_service_account_file(
+                file_path, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+
+            # Auto-discover project ID if not set
+            if not self.config.project_id and hasattr(credentials, "project_id"):
+                self.config.project_id = credentials.project_id
+
+            return credentials
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to load service account from file '{file_path}': {e}"
+            )
+
+    def _credentials_from_adc(self):
+        """Create credentials using Application Default Credentials."""
+        import google.auth
+
+        try:
+            credentials, discovered_project = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+
+            # Auto-discover project ID if not set
+            if not self.config.project_id and discovered_project:
+                self.config.project_id = discovered_project
+
+            return credentials
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to get Application Default Credentials: {e}"
+            )
+
+    def _handle_authentication_error(self, error: Exception):
+        """Provide helpful error messages for authentication failures."""
+        msg1 = "Failed to initialize GCP clients. "
+
+        # Check if any authentication method was attempted
+        if self.config.service_account_key_json:
+            msg2 = "Issue with service account JSON string. Please verify the JSON is valid. "
+        elif self.config.service_account_key_path:
+            msg2 = f"Issue with service account file '{self.config.service_account_key_path}'. Please verify the file exists and is valid. "
+        else:
+            msg2 = "No authentication method configured. Try one of these solutions:\n"
+            msg2 += "  1) Set PYRTEX_SERVICE_ACCOUNT_KEY_JSON environment variable with service account JSON\n"
+            msg2 += "  2) Set GOOGLE_APPLICATION_CREDENTIALS environment variable with path to service account file\n"
+            msg2 += "  3) Run 'gcloud auth application-default login' for development\n"
+            msg2 += "  4) Use simulation_mode=True for testing without GCP\n"
+
+        # Add specific help for common ADC issues
+        error_str = str(error).lower()
+        if "application default credentials" in error_str or "adc" in error_str:
+            msg2 += "\n💡 ADC Troubleshooting:\n"
+            msg2 += "  - Make sure you've run 'gcloud auth application-default login'\n"
+            msg2 += "  - Verify your project ID is set (PYRTEX_PROJECT_ID or GOOGLE_PROJECT_ID)\n"
+            msg2 += (
+                "  - Check if you have the required permissions in your GCP project\n"
+            )
+
+        raise ConfigurationError(msg1 + msg2 + f"\nOriginal error: {error}") from error
 
     def _resolve_infra_config(self):
         """Fills in missing infrastructure config values with sensible defaults."""
