@@ -71,7 +71,7 @@ class Job(Generic[T]):
         self._initialize_gcp()
 
     def _initialize_gcp(self):
-        """Initializes GCP clients with flexible authentication and resolves final configuration."""
+        """Initialize GCP clients with flexible authentication and resolve config."""
         if self.simulation_mode:
             logger.info("Simulation mode enabled. Using mock GCP clients.")
             return
@@ -119,11 +119,15 @@ class Job(Generic[T]):
             and self._is_service_account_file(self.config.service_account_key_path)
         ):
             logger.info(
-                f"Using service account credentials from file: {self.config.service_account_key_path}"
+                f"Using service account credentials from file: "
+                f"{self.config.service_account_key_path}"
             )
-            return self._credentials_from_file(self.config.service_account_key_path)
+            return self._credentials_from_file(
+                self.config.service_account_key_path
+            )
 
-        # Method 3: Application Default Credentials (covers both gcloud user login and service accounts)
+        # Method 3: Application Default Credentials
+        # (covers both gcloud user login and service accounts)
         else:
             logger.info("Using Application Default Credentials")
             return self._credentials_from_adc()
@@ -213,27 +217,34 @@ class Job(Generic[T]):
 
         # Check if any authentication method was attempted
         if self.config.service_account_key_json:
-            msg2 = "Issue with service account JSON string. Please verify the JSON is valid. "
+            msg2 = (
+                "Issue with service account JSON string. "
+                "Please verify the JSON is valid. "
+            )
         elif self.config.service_account_key_path:
-            msg2 = f"Issue with service account file '{self.config.service_account_key_path}'. Please verify the file exists and is valid. "
+            msg2 = (
+                f"Issue with service account file "
+                f"'{self.config.service_account_key_path}'. "
+                f"Please verify the file exists and is valid. "
+            )
         else:
-            msg2 = "No authentication method configured. Try one of these solutions:\n"
-            msg2 += "  1) Set PYRTEX_SERVICE_ACCOUNT_KEY_JSON environment variable with service account JSON\n"
-            msg2 += "  2) Set GOOGLE_APPLICATION_CREDENTIALS environment variable with path to service account file\n"
-            msg2 += "  3) Run 'gcloud auth application-default login' for development\n"
-            msg2 += "  4) Use simulation_mode=True for testing without GCP\n"
+            msg2 = "No authentication method configured. Try one of these:\n"
+            msg2 += "  1) Set PYRTEX_SERVICE_ACCOUNT_KEY_JSON env var\n"
+            msg2 += "  2) Set GOOGLE_APPLICATION_CREDENTIALS env var\n"
+            msg2 += "  3) Run 'gcloud auth application-default login'\n"
+            msg2 += "  4) Use simulation_mode=True for testing\n"
 
         # Add specific help for common ADC issues
         error_str = str(error).lower()
         if "application default credentials" in error_str or "adc" in error_str:
             msg2 += "\n💡 ADC Troubleshooting:\n"
-            msg2 += "  - Make sure you've run 'gcloud auth application-default login'\n"
-            msg2 += "  - Verify your project ID is set (PYRTEX_PROJECT_ID or GOOGLE_PROJECT_ID)\n"
-            msg2 += (
-                "  - Check if you have the required permissions in your GCP project\n"
-            )
+            msg2 += "  - Run 'gcloud auth application-default login'\n"
+            msg2 += "  - Set project ID (PYRTEX_PROJECT_ID or GOOGLE_PROJECT_ID)\n"
+            msg2 += "  - Check required permissions in your GCP project\n"
 
-        raise ConfigurationError(msg1 + msg2 + f"\nOriginal error: {error}") from error
+        raise ConfigurationError(
+            msg1 + msg2 + f"\nOriginal error: {error}"
+        ) from error
 
     def _resolve_infra_config(self):
         """Fills in missing infrastructure config values with sensible defaults."""

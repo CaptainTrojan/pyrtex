@@ -66,7 +66,7 @@ class TestJobInitialization:
         # Mock successful authentication but with no project ID discovery
         mock_credentials = Mock()
         mocker.patch("google.auth.default", return_value=(mock_credentials, None))
-        
+
         # Mock storage client with no project ID
         mock_storage_client = Mock()
         mock_storage_client.project = None
@@ -89,195 +89,222 @@ class TestJobInitialization:
 
 class TestAuthentication:
     """Test authentication methods and credential handling."""
-    
+
     def test_service_account_json_string(self, mock_gcp_clients_no_auth, mocker):
         """Test authentication with service account JSON string."""
         mock_credentials = Mock()
         mock_credentials.project_id = "test-project"
-        
-        mock_sa = mocker.patch("google.oauth2.service_account.Credentials.from_service_account_info")
+
+        mock_sa = mocker.patch(
+            "google.oauth2.service_account.Credentials.from_service_account_info"
+        )
         mock_sa.return_value = mock_credentials
-        
-        json_key = '{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}'
-        
+
+        json_key = (
+            '{"type": "service_account", "client_email": "test@test.com", '
+            '"private_key": "key", "token_uri": "uri"}'
+        )
+
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            config=InfrastructureConfig(
-                service_account_key_json=json_key
-            ),
+            config=InfrastructureConfig(service_account_key_json=json_key),
         )
-        
+
         assert job.config.project_id == "test-project"
         mock_sa.assert_called_once()
-    
+
     def test_service_account_json_string_invalid_json(self, mock_gcp_clients_no_auth):
         """Test error handling for invalid JSON string."""
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
-                model="gemini-2.0-flash-lite-001", 
+                model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}",
-                config=InfrastructureConfig(
-                    service_account_key_json="invalid json"
-                ),
+                config=InfrastructureConfig(service_account_key_json="invalid json"),
             )
-        
+
         assert "Invalid JSON in service account key" in str(exc_info.value)
-    
-    def test_service_account_json_string_auth_error(self, mock_gcp_clients_no_auth, mocker):
+
+    def test_service_account_json_string_auth_error(
+        self, mock_gcp_clients_no_auth, mocker
+    ):
         """Test error handling for service account auth failure."""
-        mocker.patch("google.oauth2.service_account.Credentials.from_service_account_info", 
-                    side_effect=Exception("Auth failed"))
-        
+        mocker.patch(
+            "google.oauth2.service_account.Credentials.from_service_account_info",
+            side_effect=Exception("Auth failed"),
+        )
+
         json_key = '{"type": "service_account", "client_email": "test@test.com"}'
-        
+
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
                 model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}",
-                config=InfrastructureConfig(
-                    service_account_key_json=json_key
-                ),
+                config=InfrastructureConfig(service_account_key_json=json_key),
             )
-        
+
         assert "Failed to load service account from JSON string" in str(exc_info.value)
-    
-    def test_service_account_file_path(self, mock_gcp_clients_no_auth, mocker, tmp_path):
+
+    def test_service_account_file_path(
+        self, mock_gcp_clients_no_auth, mocker, tmp_path
+    ):
         """Test authentication with service account file."""
         mock_credentials = Mock()
         mock_credentials.project_id = "file-project"
-        
-        mock_sa = mocker.patch("google.oauth2.service_account.Credentials.from_service_account_file")
+
+        mock_sa = mocker.patch(
+            "google.oauth2.service_account.Credentials.from_service_account_file"
+        )
         mock_sa.return_value = mock_credentials
-        
+
         # Create a temporary service account file
         sa_file = tmp_path / "service_account.json"
-        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
-        
+        sa_file.write_text(
+            '{"type": "service_account", "client_email": "test@test.com", '
+            '"private_key": "key", "token_uri": "uri"}'
+        )
+
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            config=InfrastructureConfig(
-                service_account_key_path=str(sa_file)
-            ),
+            config=InfrastructureConfig(service_account_key_path=str(sa_file)),
         )
-        
+
         assert job.config.project_id == "file-project"
-        mock_sa.assert_called_once_with(str(sa_file), scopes=['https://www.googleapis.com/auth/cloud-platform'])
-    
-    def test_service_account_file_path_error(self, mock_gcp_clients_no_auth, mocker, tmp_path):
+        mock_sa.assert_called_once_with(
+            str(sa_file), scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+
+    def test_service_account_file_path_error(
+        self, mock_gcp_clients_no_auth, mocker, tmp_path
+    ):
         """Test error handling for service account file failure."""
-        mocker.patch("google.oauth2.service_account.Credentials.from_service_account_file",
-                    side_effect=Exception("File error"))
-        
+        mocker.patch(
+            "google.oauth2.service_account.Credentials.from_service_account_file",
+            side_effect=Exception("File error"),
+        )
+
         sa_file = tmp_path / "service_account.json"
-        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
-        
+        sa_file.write_text(
+            '{"type": "service_account", "client_email": "test@test.com", '
+            '"private_key": "key", "token_uri": "uri"}'
+        )
+
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
                 model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}",
-                config=InfrastructureConfig(
-                    service_account_key_path=str(sa_file)
-                ),
+                config=InfrastructureConfig(service_account_key_path=str(sa_file)),
             )
-        
-        assert f"Failed to load service account from file '{sa_file}'" in str(exc_info.value)
-    
+
+        assert f"Failed to load service account from file '{sa_file}'" in str(
+            exc_info.value
+        )
+
     def test_is_service_account_file_valid(self, tmp_path):
         """Test _is_service_account_file with valid service account file."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # Create valid service account file
         sa_file = tmp_path / "service_account.json"
-        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
-        
+        sa_file.write_text(
+            '{"type": "service_account", "client_email": "test@test.com", '
+            '"private_key": "key", "token_uri": "uri"}'
+        )
+
         assert job._is_service_account_file(str(sa_file)) is True
-    
+
     def test_is_service_account_file_invalid(self, tmp_path):
         """Test _is_service_account_file with invalid file."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # Create user ADC file (different format)
         adc_file = tmp_path / "application_default_credentials.json"
-        adc_file.write_text('{"client_id": "123", "client_secret": "secret", "refresh_token": "token"}')
-        
+        adc_file.write_text(
+            '{"client_id": "123", "client_secret": "secret", "refresh_token": "token"}'
+        )
+
         assert job._is_service_account_file(str(adc_file)) is False
-    
+
     def test_is_service_account_file_nonexistent(self):
         """Test _is_service_account_file with non-existent file."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         assert job._is_service_account_file("/nonexistent/file.json") is False
-    
+
     def test_is_service_account_file_invalid_json(self, tmp_path):
         """Test _is_service_account_file with invalid JSON."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # Create file with invalid JSON
         bad_file = tmp_path / "bad.json"
-        bad_file.write_text('not valid json')
-        
+        bad_file.write_text("not valid json")
+
         assert job._is_service_account_file(str(bad_file)) is False
 
     def test_credentials_from_adc_with_project_discovery(self, mocker):
         """Test ADC with automatic project discovery."""
         mock_credentials = Mock()
-        
+
         mock_adc = mocker.patch("google.auth.default")
         mock_adc.return_value = (mock_credentials, "discovered-project")
-        
+
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         # Test the method directly
         credentials = job._credentials_from_adc()
-        
+
         assert credentials == mock_credentials
         # The project ID should be auto-discovered and set
         assert job.config.project_id == "discovered-project"
-        mock_adc.assert_called_once_with(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+        mock_adc.assert_called_once_with(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
 
     def test_handle_authentication_error_adc_specific(self, mocker):
         """Test authentication error handling with ADC-specific help."""
-        mocker.patch("google.auth.default", side_effect=Exception("Application Default Credentials not found"))
-        
+        mocker.patch(
+            "google.auth.default",
+            side_effect=Exception("Application Default Credentials not found"),
+        )
+
         with pytest.raises(ConfigurationError) as exc_info:
             Job(
                 model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
                 prompt_template="Test: {{ word }}",
             )
-        
+
         error_msg = str(exc_info.value)
         assert "Failed to initialize GCP clients" in error_msg
         assert "💡 ADC Troubleshooting:" in error_msg

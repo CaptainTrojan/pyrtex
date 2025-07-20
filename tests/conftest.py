@@ -94,19 +94,27 @@ def mock_gcp_auth(mocker):
     """Mock GCP authentication to avoid slow real auth calls during unit tests."""
     mock_credentials = Mock()
     mock_credentials.project_id = "test-project"
-    
+
     # Mock the main authentication entry point
     mocker.patch("google.auth.default", return_value=(mock_credentials, "test-project"))
-    
+
     # Also mock service account methods for comprehensive coverage
-    mocker.patch("google.oauth2.service_account.Credentials.from_service_account_info", return_value=mock_credentials)
-    mocker.patch("google.oauth2.service_account.Credentials.from_service_account_file", return_value=mock_credentials)
-    
+    mocker.patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+        return_value=mock_credentials,
+    )
+    mocker.patch(
+        "google.oauth2.service_account.Credentials.from_service_account_file",
+        return_value=mock_credentials,
+    )
+
     return mock_credentials
 
 
 @pytest.fixture
-def mock_gcp_clients(mocker, mock_gcp_auth, mock_storage_client, mock_bigquery_client, mock_batch_job):
+def mock_gcp_clients(
+    mocker, mock_gcp_auth, mock_storage_client, mock_bigquery_client, mock_batch_job
+):
     """Mock all GCP clients and services including fast authentication."""
     mocker.patch("google.cloud.storage.Client", return_value=mock_storage_client)
     mocker.patch("google.cloud.bigquery.Client", return_value=mock_bigquery_client)
@@ -123,8 +131,10 @@ def mock_gcp_clients(mocker, mock_gcp_auth, mock_storage_client, mock_bigquery_c
     }
 
 
-@pytest.fixture  
-def mock_gcp_clients_no_auth(mocker, mock_storage_client, mock_bigquery_client, mock_batch_job):
+@pytest.fixture
+def mock_gcp_clients_no_auth(
+    mocker, mock_storage_client, mock_bigquery_client, mock_batch_job
+):
     """Mock GCP clients without authentication mocking for auth-specific tests."""
     mocker.patch("google.cloud.storage.Client", return_value=mock_storage_client)
     mocker.patch("google.cloud.bigquery.Client", return_value=mock_bigquery_client)

@@ -48,3 +48,7 @@ jobs:
     - name: Run tests
       run: |
         ./test_runner.sh
+
+    - name: Run unit tests (coverage focus)
+      run: |
+        ./test_runner.sh --unit
