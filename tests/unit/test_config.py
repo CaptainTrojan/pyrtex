@@ -70,6 +70,106 @@ class TestInfrastructureConfig:
             assert config.project_id == "explicit-project"
             assert config.location == "us-west1"
 
+    def test_service_account_key_json_env_var(self):
+        """Test service account JSON from environment variable."""
+        json_key = '{"type": "service_account", "client_email": "test@test.com"}'
+        
+        with patch.dict(
+            os.environ,
+            {"PYRTEX_SERVICE_ACCOUNT_KEY_JSON": json_key},
+            clear=True
+        ):
+            config = InfrastructureConfig()
+            assert config.service_account_key_json == json_key
+
+    def test_service_account_key_path_env_var(self, tmp_path):
+        """Test service account file path from environment variable."""
+        # Create a valid service account file
+        sa_file = tmp_path / "service_account.json"
+        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
+        
+        with patch.dict(
+            os.environ,
+            {"GOOGLE_APPLICATION_CREDENTIALS": str(sa_file)},
+            clear=True
+        ):
+            config = InfrastructureConfig()
+            assert config.service_account_key_path == str(sa_file)
+
+    def test_service_account_key_path_env_var_not_service_account(self, tmp_path):
+        """Test that user ADC file is not set as service account path."""
+        # Create a user ADC file (different format)
+        adc_file = tmp_path / "application_default_credentials.json"
+        adc_file.write_text('{"client_id": "123", "client_secret": "secret", "refresh_token": "token"}')
+        
+        with patch.dict(
+            os.environ,
+            {"GOOGLE_APPLICATION_CREDENTIALS": str(adc_file)},
+            clear=True
+        ):
+            config = InfrastructureConfig()
+            assert config.service_account_key_path is None
+
+    def test_explicit_auth_overrides_env(self, tmp_path):
+        """Test that explicit auth config overrides environment variables."""
+        sa_file = tmp_path / "service_account.json"
+        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
+        
+        json_key = '{"type": "service_account", "client_email": "explicit@test.com"}'
+        
+        with patch.dict(
+            os.environ,
+            {
+                "PYRTEX_SERVICE_ACCOUNT_KEY_JSON": "env_json_key",
+                "GOOGLE_APPLICATION_CREDENTIALS": str(sa_file)
+            },
+            clear=True
+        ):
+            config = InfrastructureConfig(
+                service_account_key_json=json_key,
+                service_account_key_path="/explicit/path"
+            )
+            
+            # Explicit values should override env vars
+            assert config.service_account_key_json == json_key
+            assert config.service_account_key_path == "/explicit/path"
+
+    def test_is_service_account_file_valid(self, tmp_path):
+        """Test _is_service_account_file with valid service account file."""
+        config = InfrastructureConfig()
+        
+        # Create valid service account file
+        sa_file = tmp_path / "service_account.json"
+        sa_file.write_text('{"type": "service_account", "client_email": "test@test.com", "private_key": "key", "token_uri": "uri"}')
+        
+        assert config._is_service_account_file(str(sa_file)) is True
+
+    def test_is_service_account_file_invalid(self, tmp_path):
+        """Test _is_service_account_file with invalid file."""
+        config = InfrastructureConfig()
+        
+        # Create user ADC file (different format)
+        adc_file = tmp_path / "application_default_credentials.json"
+        adc_file.write_text('{"client_id": "123", "client_secret": "secret", "refresh_token": "token"}')
+        
+        assert config._is_service_account_file(str(adc_file)) is False
+
+    def test_is_service_account_file_nonexistent(self):
+        """Test _is_service_account_file with non-existent file."""
+        config = InfrastructureConfig()
+        
+        assert config._is_service_account_file("/nonexistent/file.json") is False
+
+    def test_is_service_account_file_invalid_json(self, tmp_path):
+        """Test _is_service_account_file with invalid JSON."""
+        config = InfrastructureConfig()
+        
+        # Create file with invalid JSON
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text('not valid json')
+        
+        assert config._is_service_account_file(str(bad_file)) is False
+
 
 class TestGenerationConfig:
     """Test GenerationConfig class."""
