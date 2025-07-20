@@ -883,37 +883,6 @@ class TestFileUpload:
         assert gcs_uri == expected_uri
         assert mime_type == "text/plain"
 
-    def test_string_file_path_upload(self, mock_gcp_clients, tmp_path):
-        """Test file upload with string file path."""
-        # Create a temporary file
-        temp_file = tmp_path / "test.txt"
-        temp_file.write_text("test content")
-
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,
-            prompt_template="Process {{ image }}",
-        )
-
-        # Use string path instead of Path object
-        file_input = FileInput(image=str(temp_file))
-        job.add_request("file_key", file_input)
-
-        payload = job._create_jsonl_payload()
-
-        lines = payload.split("\n")
-        assert len(lines) == 1
-
-        data = json.loads(lines[0])
-        parts = data["request"]["contents"][0]["parts"]
-
-        # Should have file_data part and text part
-        assert len(parts) == 2
-        assert "file_data" in parts[0]
-        assert "file_uri" in parts[0]["file_data"]
-        assert parts[0]["file_data"]["file_uri"].startswith("gs://")
-        assert "text" in parts[1]
-
 
 class TestJsonlPayload:
     """Test JSONL payload creation."""
@@ -963,7 +932,7 @@ class TestJsonlPayload:
         test_file = tmp_path / "test.jpg"
         test_file.write_bytes(b"fake image data")
 
-        job.add_request("key1", FileInput(image=str(test_file)))
+        job.add_request("key1", FileInput(image=test_file))
 
         jsonl_payload = job._create_jsonl_payload()
 
@@ -1050,7 +1019,7 @@ class TestPayloadGeneration:
         # Create a temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("test content")
-            temp_file_path = f.name
+            temp_file_path = Path(f.name)
 
         try:
             job = Job(
@@ -1094,7 +1063,7 @@ class TestPayloadGeneration:
         # Add file request
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("file content")
-            temp_file_path = f.name
+            temp_file_path = Path(f.name)
 
         try:
             file_input = FileInput(image=temp_file_path)

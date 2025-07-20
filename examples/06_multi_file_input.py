@@ -69,7 +69,7 @@ Based on both files, provide a purchase recommendation.
     for i, (prop_path, card_path) in enumerate(valid_combinations, 1):
         job.add_request(
             f"combo_{i}",
-            MultiFileInput(property_file=str(prop_path), business_card=str(card_path)),
+            MultiFileInput(property_file=prop_path, business_card=card_path),
         )
 
     print(f"Processing {len(valid_combinations)} property-buyer combinations...")

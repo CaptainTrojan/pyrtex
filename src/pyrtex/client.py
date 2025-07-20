@@ -453,20 +453,10 @@ class Job(Generic[T]):
             data_dict = data_model.model_dump()
 
             for field_name, value in data_dict.items():
-                # More explicit file detection logic
-                is_file_data = isinstance(value, (bytes, Path)) or (
-                    isinstance(value, str)
-                    and len(value) > 0
-                    and Path(value).exists()
-                    and Path(value).is_file()
-                )
-
-                if is_file_data:
+                if isinstance(value, (bytes, Path)):  # If is file data
                     # This is file data. Upload it.
                     if isinstance(value, Path):
                         filename = value.name
-                    elif isinstance(value, str):
-                        filename = Path(value).name
                     else:
                         filename = field_name
 

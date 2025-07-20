@@ -81,7 +81,7 @@ class TestPayloadGeneration:
         # Create a temporary file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("test content")
-            temp_file_path = f.name
+            temp_file_path = Path(f.name)
 
         try:
             job = Job(
