@@ -96,7 +96,240 @@ for result in job.results():
         # Handle result.error
 ```
 
+## 🔐 Authentication
+
+PyRTex supports multiple authentication methods for Google Cloud Platform. Choose the method that best fits your deployment environment:
+
+### Method 1: Service Account JSON String (Recommended for Production)
+
+Perfect for serverless deployments (AWS Lambda, Google Cloud Functions, etc.):
+
+```python
+import json
+import os
+from pyrtex.config import InfrastructureConfig
+
+# Set via environment variable (most secure)
+os.environ["PYRTEX_SERVICE_ACCOUNT_KEY_JSON"] = json.dumps({
+    "type": "service_account",
+    "project_id": "your-project-id",
+    "private_key_id": "key-id",
+    "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+    "client_email": "your-service@your-project.iam.gserviceaccount.com",
+    "client_id": "123456789",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-service%40your-project.iam.gserviceaccount.com"
+})
+
+# PyRTex will automatically detect and use the JSON string
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt"
+)
+```
+
+Or configure directly:
+```python
+config = InfrastructureConfig(
+    service_account_key_json=json.dumps(service_account_dict)
+)
+job = Job(..., config=config)
+```
+
+### Method 2: Service Account File Path
+
+For traditional server deployments:
+
+```python
+import os
+
+# Set via environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/path/to/service-account.json"
+
+# PyRTex will automatically detect and use the file
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt"
+)
+```
+
+Or configure directly:
+```python
+config = InfrastructureConfig(
+    service_account_key_path="/path/to/service-account.json"
+)
+job = Job(..., config=config)
+```
+
+### Method 3: Application Default Credentials (Development)
+
+For local development and testing:
+
+```bash
+# One-time setup
+gcloud auth application-default login
+```
+
+```python
+# No additional configuration needed
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt"
+)
+```
+
+### Authentication Priority
+
+PyRTex uses the following priority order:
+1. **Service Account JSON string** (`PYRTEX_SERVICE_ACCOUNT_KEY_JSON` or `service_account_key_json`)
+2. **Service Account file** (`GOOGLE_APPLICATION_CREDENTIALS` or `service_account_key_path`)  
+3. **Application Default Credentials** (gcloud login)
+
+### Required GCP Permissions
+
+When creating a service account for PyRTex, assign these IAM roles:
+
+**Required Roles:**
+- **`roles/aiplatform.user`** - Vertex AI access for batch processing
+- **`roles/storage.objectAdmin`** - GCS bucket read/write access
+- **`roles/bigquery.dataEditor`** - BigQuery dataset read/write access
+- **`roles/bigquery.jobUser`** - BigQuery job execution
+
+**Alternative (More Restrictive):**
+If you prefer granular permissions, create a custom role with:
+```json
+{
+  "permissions": [
+    "aiplatform.batchPredictionJobs.create",
+    "aiplatform.batchPredictionJobs.get",
+    "aiplatform.batchPredictionJobs.list",
+    "aiplatform.models.predict",
+    "storage.objects.create",
+    "storage.objects.delete", 
+    "storage.objects.get",
+    "storage.objects.list",
+    "bigquery.datasets.create",
+    "bigquery.tables.create",
+    "bigquery.tables.get",
+    "bigquery.tables.getData",
+    "bigquery.tables.updateData",
+    "bigquery.jobs.create"
+  ]
+}
+```
+
+**Setup via gcloud CLI:**
+```bash
+# Create service account
+gcloud iam service-accounts create pyrtex-service \
+    --display-name="PyRTex Service Account"
+
+# Assign roles
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="serviceAccount:pyrtex-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/aiplatform.user"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="serviceAccount:pyrtex-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/storage.objectAdmin"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="serviceAccount:pyrtex-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/bigquery.dataEditor"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="serviceAccount:pyrtex-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/bigquery.jobUser"
+
+# Create and download key
+gcloud iam service-accounts keys create pyrtex-key.json \
+    --iam-account=pyrtex-service@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
 ## ⚙️ Configuration
+
+### InfrastructureConfig
+
+Configure GCP resources and authentication:
+
+```python
+from pyrtex.config import InfrastructureConfig
+
+config = InfrastructureConfig(
+    # Required (set one of these)
+    project_id="your-gcp-project-id",                    # GCP Project ID
+    
+    # Authentication (optional - detected automatically)
+    service_account_key_json='{"type": "service_account", ...}',  # JSON string
+    service_account_key_path="/path/to/service-account.json",     # File path
+    
+    # GCP Resources (optional - sensible defaults)
+    location="us-central1",                              # Vertex AI location
+    gcs_bucket_name="pyrtex-assets-your-project",        # GCS bucket for files
+    bq_dataset_id="pyrtex_results",                      # BigQuery dataset
+    
+    # Data Retention (optional)
+    gcs_file_retention_days=1,                           # GCS file cleanup (1-365)
+    bq_table_retention_days=1                            # BigQuery table cleanup (1-365)
+)
+
+job = Job(..., config=config)
+```
+
+**Environment Variables:**
+- `GOOGLE_PROJECT_ID` or `PYRTEX_PROJECT_ID` → `project_id`
+- `GOOGLE_LOCATION` → `location` 
+- `PYRTEX_GCS_BUCKET_NAME` → `gcs_bucket_name`
+- `PYRTEX_BQ_DATASET_ID` → `bq_dataset_id`
+- `PYRTEX_SERVICE_ACCOUNT_KEY_JSON` → `service_account_key_json`
+- `GOOGLE_APPLICATION_CREDENTIALS` → `service_account_key_path`
+
+### GenerationConfig
+
+Fine-tune Gemini model behavior:
+
+```python
+from pyrtex.config import GenerationConfig
+
+generation_config = GenerationConfig(
+    temperature=0.7,        # Creativity level (0.0-2.0)
+    max_output_tokens=2048, # Maximum response length (1-8192)
+    top_p=0.95,            # Nucleus sampling (0.0-1.0)
+    top_k=40               # Top-k sampling (1-40)
+)
+
+job = Job(
+    model="gemini-2.0-flash-lite-001",
+    output_schema=YourSchema,
+    prompt_template="Your prompt",
+    generation_config=generation_config
+)
+```
+
+**Parameters:**
+- **`temperature`** (0.0-2.0): Controls randomness. Lower = more focused, higher = more creative
+- **`max_output_tokens`** (1-8192): Maximum tokens in response. Adjust based on expected output length
+- **`top_p`** (0.0-1.0): Nucleus sampling. Consider tokens with cumulative probability up to top_p
+- **`top_k`** (1-40): Top-k sampling. Consider only the k most likely tokens
+
+**Quick Configs:**
+```python
+# Conservative (factual, consistent)
+GenerationConfig(temperature=0.1, top_p=0.8, top_k=10)
+
+# Balanced (default)
+GenerationConfig(temperature=0.0, max_output_tokens=2048)
+
+# Creative (diverse, experimental)  
+GenerationConfig(temperature=1.2, top_p=0.95, top_k=40)
+```
+
+## 🎯 Usage Patterns
 
 ### For Simulation Mode (No GCP Required)
 ```python
@@ -156,6 +389,10 @@ This happens when GCP project ID is not set. You have three options:
    config = InfrastructureConfig(project_id="your-project-id")
    job = Job(..., config=config)
    ```
+
+**Error: "Could not automatically determine credentials"**
+
+Follow the authentication methods above. For production, use Service Account JSON. For development, use `gcloud auth application-default login`.
 
 ## 📚 Examples
 
