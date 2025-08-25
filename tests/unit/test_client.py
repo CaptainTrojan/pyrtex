@@ -14,7 +14,12 @@ from pyrtex.client import Job
 from pyrtex.config import GenerationConfig, InfrastructureConfig
 from pyrtex.exceptions import ConfigurationError, JobFailedError
 from tests.conftest import FileInput, SimpleInput, SimpleOutput
+# Additional coverage tests for pyrtex.client Job edge branches
 
+from datetime import datetime
+from typing import Union, Dict
+
+from pydantic import BaseModel
 
 class TestJobInitialization:
     """Test Job class initialization and configuration."""
@@ -507,6 +512,24 @@ class TestJobRequestManagement:
 
         assert "Cannot add requests after job has been submitted" in str(exc_info.value)
 
+    def test_add_request_with_override_schema_triggers_validation(self, mock_gcp_clients):
+        """Test that providing an override schema runs validation (covers line 341)."""
+        from pydantic import BaseModel, Field
+
+        class AltOutput(BaseModel):
+            result: str = Field(description="Alt result")
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}",
+        )
+
+        job.add_request("key1", SimpleInput(word="hello"), output_schema=AltOutput)
+
+        assert len(job._requests) == 1
+        assert job._requests[0][2] is AltOutput  # override stored
+
 
 class TestJobSubmission:
     """Test job submission logic."""
@@ -685,6 +708,89 @@ class TestJobResults:
         assert "Cannot get results for a job that has not been submitted" in str(
             exc_info.value
         )
+
+    def test_results_skips_unknown_instance_id(self, mock_gcp_clients):
+        """Row with an unknown instance id is skipped (ensures graceful continue)."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}",
+        )
+        job.add_request("known", SimpleInput(word="hello"))
+        job.submit()
+
+        # Map only the known instance id
+        job._instance_map = {"known_instance": ("known", SimpleOutput)}
+
+        # Create two rows: one unknown, one known
+        unknown_row = Mock()
+        unknown_row.id = "unknown_instance"
+        unknown_row.status = None
+        unknown_row.response = json.dumps({
+            "candidates": [
+                {"content": {"parts": [{"functionCall": {"name": "extract_info", "args": {"result": "ignored"}}}]}}
+            ],
+            "usageMetadata": {"totalTokenCount": 1}
+        })
+
+        known_row = Mock()
+        known_row.id = "known_instance"
+        known_row.status = None
+        known_row.response = json.dumps({
+            "candidates": [
+                {"content": {"parts": [{"functionCall": {"name": "extract_info", "args": {"result": "ok"}}}]}}
+            ],
+            "usageMetadata": {"totalTokenCount": 2}
+        })
+
+        mock_query = Mock()
+        mock_query.result.return_value = [unknown_row, known_row]
+        mock_gcp_clients["bigquery"].query.return_value = mock_query
+
+        results = list(job.results())
+        assert len(results) == 1
+        assert results[0].request_key == "known"
+        assert results[0].output.result == "ok"
+
+class TestSchemaValidationRecursion:
+    """Tests covering recursive schema validation branches (lines 847, 913)."""
+
+    def test_recursive_schema_validation_visited_model_short_circuit(self, mock_gcp_clients):
+        """Self-referencing model exercises visited_models early return (line 847)."""
+        from pydantic import BaseModel
+
+        class Node(BaseModel):
+            children: list['Node'] = []  # Forward self reference via list
+
+        # Resolve forward refs
+        Node.model_rebuild()
+
+        # Should not raise; recursion should short-circuit on second encounter
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=Node,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+        assert job.output_schema is Node
+
+    def test_recursive_schema_validation_nested_model(self, mock_gcp_clients):
+        """Nested model field triggers recursion into nested Pydantic model (line 913)."""
+        from pydantic import BaseModel
+
+        class Inner(BaseModel):
+            value: str
+
+        class Outer(BaseModel):
+            inner: Inner
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=Outer,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+        assert job.output_schema is Outer
 
 
 class TestDummyResultsGeneration:
@@ -1820,3 +1926,131 @@ class TestSchemaFlattening:
         finally:
             # Restore the original method
             job.output_schema.model_json_schema = original_method
+
+
+class TestSchemaFlatteningNoDefs:
+    def test_get_flattened_schema_no_defs_early_return(self, mock_gcp_clients):
+        """Ensure early return path when schema has no $defs is covered."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+        original = job.output_schema.model_json_schema
+        try:
+            job.output_schema.model_json_schema = lambda: {
+                "type": "object",
+                "properties": {"result": {"type": "string"}},
+            }
+            flattened = job._get_flattened_schema()
+            assert "properties" in flattened
+            assert "$defs" not in flattened
+        finally:
+            job.output_schema.model_json_schema = original
+
+
+class TestResultsUnknownInstance:
+    def test_results_skips_unknown_instance_id(self, mock_gcp_clients):
+        """BigQuery row with unknown instance id should be skipped without error."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}",
+        )
+        # Provide one known mapping
+        job._instance_map = {"known_id": ("known_key", SimpleOutput)}
+
+        # Mock BigQuery returning one unknown and one known id
+        from google.cloud.aiplatform_v1.types import JobState
+
+        mock_batch_job = Mock()
+        mock_batch_job.state = JobState.JOB_STATE_SUCCEEDED
+        mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
+        job._batch_job = mock_batch_job
+
+        unknown_row = Mock(id="unknown_id", status=None, response=json.dumps({
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"functionCall": {"name": "extract_info", "args": {"result": "ignored"}}}
+                        ]
+                    }
+                }
+            ],
+            "usageMetadata": {"totalTokenCount": 1}
+        }))
+        known_row = Mock(id="known_id", status=None, response=json.dumps({
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"functionCall": {"name": "extract_info", "args": {"result": "ok"}}}
+                        ]
+                    }
+                }
+            ],
+            "usageMetadata": {"totalTokenCount": 2}
+        }))
+
+        mock_bigquery_client = Mock()
+        mock_query_job = Mock()
+        mock_query_job.result.return_value = [unknown_row, known_row]
+        mock_bigquery_client.query.return_value = mock_query_job
+        job._bigquery_client = mock_bigquery_client
+
+        results = list(job.results())
+        # Only the known row should yield a result
+        assert len(results) == 1
+        assert results[0].request_key == "known_key"
+        assert results[0].output.result == "ok"
+
+
+class TestDummyOutputExtraBranches:
+    def test_dummy_output_union_field_direct_call(self, mock_gcp_clients):
+        """Directly call _create_dummy_output with a model containing a Union field.
+        Validation prohibits Union for job schemas, but this internal helper should still
+        handle it when invoked directly for robustness."""
+        class UnionOutput(BaseModel):
+            value: Union[int, str]
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+        dummy = job._create_dummy_output(UnionOutput)
+        assert isinstance(dummy, UnionOutput)
+        # Should pick one of the union member dummy types (int or str); we accept either
+        assert isinstance(dummy.value, (int, str))
+
+    def test_dummy_output_datetime_field(self, mock_gcp_clients):
+        """Cover datetime field branch in dummy output generation."""
+        class DateTimeOutput(BaseModel):
+            timestamp: datetime
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+        dummy = job._create_dummy_output(DateTimeOutput)
+        assert isinstance(dummy.timestamp, datetime)
+
+
+class TestSchemaValidationDictKey:
+    def test_validate_schema_rejects_non_string_dict_keys(self, mock_gcp_clients):
+        """Ensure _validate_schema raises for dict with non-string keys."""
+        class BadDictModel(BaseModel):
+            mapping: Dict[int, str]
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+        )
+        # Directly call internal validator to avoid constructing Job with invalid schema
+        with pytest.raises(ValueError, match="Dictionary keys in 'mapping' must be of type str"):
+            job._validate_schema(BadDictModel)
