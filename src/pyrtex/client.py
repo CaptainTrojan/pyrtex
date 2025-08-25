@@ -131,9 +131,7 @@ class Job(Generic[T]):
                 f"Using service account credentials from file: "
                 f"{self.config.service_account_key_path}"
             )
-            return self._credentials_from_file(
-                self.config.service_account_key_path
-            )
+            return self._credentials_from_file(self.config.service_account_key_path)
 
         # Method 3: Application Default Credentials
         # (covers both gcloud user login and service accounts)
@@ -251,9 +249,7 @@ class Job(Generic[T]):
             msg2 += "  - Set project ID (PYRTEX_PROJECT_ID or GOOGLE_PROJECT_ID)\n"
             msg2 += "  - Check required permissions in your GCP project\n"
 
-        raise ConfigurationError(
-            msg1 + msg2 + f"\nOriginal error: {error}"
-        ) from error
+        raise ConfigurationError(msg1 + msg2 + f"\nOriginal error: {error}") from error
 
     def _resolve_infra_config(self):
         """Fills in missing infrastructure config values with sensible defaults."""
@@ -360,18 +356,42 @@ class Job(Generic[T]):
 
             # Map file extensions to Gemini-supported MIME types only
             gemini_supported_types = {
-                ".txt": "text/plain", ".yaml": "text/plain", ".yml": "text/plain",
-                ".json": "text/plain", ".xml": "text/plain", ".csv": "text/plain",
-                ".tsv": "text/plain", ".md": "text/plain", ".rst": "text/plain",
-                ".log": "text/plain", ".ini": "text/plain", ".cfg": "text/plain",
-                ".conf": "text/plain", ".py": "text/plain", ".js": "text/plain",
-                ".css": "text/plain", ".html": "text/plain", ".htm": "text/plain",
-                ".sql": "text/plain", ".sh": "text/plain", ".bat": "text/plain",
-                ".ps1": "text/plain", ".pdf": "application/pdf", ".png": "image/png",
-                ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
-                ".mp3": "audio/mp3", ".mpeg": "audio/mpeg", ".wav": "audio/wav",
-                ".mov": "video/mov", ".mp4": "video/mp4", ".mpv": "video/mpeg",
-                ".mpg": "video/mpg", ".avi": "video/avi", ".wmv": "video/wmv",
+                ".txt": "text/plain",
+                ".yaml": "text/plain",
+                ".yml": "text/plain",
+                ".json": "text/plain",
+                ".xml": "text/plain",
+                ".csv": "text/plain",
+                ".tsv": "text/plain",
+                ".md": "text/plain",
+                ".rst": "text/plain",
+                ".log": "text/plain",
+                ".ini": "text/plain",
+                ".cfg": "text/plain",
+                ".conf": "text/plain",
+                ".py": "text/plain",
+                ".js": "text/plain",
+                ".css": "text/plain",
+                ".html": "text/plain",
+                ".htm": "text/plain",
+                ".sql": "text/plain",
+                ".sh": "text/plain",
+                ".bat": "text/plain",
+                ".ps1": "text/plain",
+                ".pdf": "application/pdf",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".mp3": "audio/mp3",
+                ".mpeg": "audio/mpeg",
+                ".wav": "audio/wav",
+                ".mov": "video/mov",
+                ".mp4": "video/mp4",
+                ".mpv": "video/mpeg",
+                ".mpg": "video/mpg",
+                ".avi": "video/avi",
+                ".wmv": "video/wmv",
                 ".flv": "video/flv",
             }
             mime_type = gemini_supported_types.get(ext, "text/plain")
@@ -383,7 +403,9 @@ class Job(Generic[T]):
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 
-    def _get_flattened_schema(self, schema_to_flatten: Optional[Type[BaseModel]] = None) -> dict:
+    def _get_flattened_schema(
+        self, schema_to_flatten: Optional[Type[BaseModel]] = None
+    ) -> dict:
         """Generate a flattened JSON schema without $ref references.
 
         Backwards compatibility: prior versions exposed this helper without
@@ -654,7 +676,10 @@ class Job(Generic[T]):
                 lookup_result = self._instance_map.get(instance_id)
 
                 if not lookup_result:
-                    logger.warning(f"Could not find request data for instance ID '{instance_id}'. Skipping.")
+                    logger.warning(
+                        f"Could not find request data for instance ID '{instance_id}'"
+                        ". Skipping."
+                    )
                     continue
 
                 # Expect new tuple-based mapping (request_key, schema)
@@ -779,7 +804,11 @@ class Job(Generic[T]):
 
         from pydantic_core import PydanticUndefined
 
-        schema_fields = schema_to_mock.model_fields if schema_to_mock else self.output_schema.model_fields
+        schema_fields = (
+            schema_to_mock.model_fields
+            if schema_to_mock
+            else self.output_schema.model_fields
+        )
         dummy_data = {}
 
         for field_name, field_info in schema_fields.items():
@@ -834,11 +863,12 @@ class Job(Generic[T]):
         2.  Enum values that can be misinterpreted as booleans (e.g., "yes", "no").
         """
         from enum import Enum
-        from typing import Any, get_args, get_origin, Union
+        from typing import Any, Union, get_args, get_origin
+
         from pydantic import BaseModel
 
-        # Using a set for efficient lookup of visited models to prevent infinite recursion
-        # in case of self-referencing models.
+        # Using a set for efficient lookup of visited models to prevent infinite
+        # recursion in case of self-referencing models.
         visited_models = set()
 
         def _recursive_validate(model_to_check: Type[BaseModel], parent_path: str = ""):
@@ -848,28 +878,33 @@ class Job(Generic[T]):
             visited_models.add(model_to_check)
 
             for field_name, field_info in model_to_check.model_fields.items():
-                current_path = f"{parent_path}.{field_name}" if parent_path else field_name
+                current_path = (
+                    f"{parent_path}.{field_name}" if parent_path else field_name
+                )
                 _check_field_type(field_info.annotation, current_path)
 
         def _check_field_type(field_type: Any, field_path: str):
             """
-            Recursively checks a type annotation for compatibility issues within a field.
+            Recursively checks a type annotation for compatibility issues
+            within a field.
             """
             origin = get_origin(field_type)
             args = get_args(field_type)
 
             # --- 1. Prohibit Union and Optional types ---
             if origin is Union:
-                # Identify if it's Optional[T] (i.e., Union[T, None]) for a clearer error message
+                # Identify if it's Optional[T] (i.e., Union[T, None]) for a clearer
+                # error message
                 is_optional = len(args) == 2 and args[1] is type(None)
                 error_type = "Optional" if is_optional else "Union"
 
                 raise ValueError(
-                    f"Field '{field_path}' uses an {error_type} type, which is not "
-                    f"supported by Vertex AI function calling as it produces 'anyOf' "
-                    f"in the schema. Consider making the field required and providing a "
-                    f"default value (e.g., an empty string '' or an empty list []) "
-                    f"instead of None."
+                    f"Field '{field_path}' uses an {error_type} type, "
+                    "which is not supported by Vertex AI function calling "
+                    "as it produces 'anyOf' in the schema. "
+                    "Consider making the field required and providing a default value "
+                    "(e.g., an empty string '' or an empty list []) "
+                    "instead of None."
                 )
 
             # --- 2. Recurse into generic container types ---
@@ -885,7 +920,7 @@ class Job(Generic[T]):
                             f"for JSON compatibility."
                         )
                     _check_field_type(args[1], f"{field_path}.value")
-                return # Stop processing after handling the container
+                return  # Stop processing after handling the container
 
             # Use the origin if it exists (like `list` from `list[str]`),
             # otherwise use the type itself.
@@ -894,8 +929,24 @@ class Job(Generic[T]):
             # --- 3. Check for problematic Enum values ---
             if isinstance(type_to_check, type) and issubclass(type_to_check, Enum):
                 PROBLEMATIC_VALUES = {
-                    "yes", "no", "true", "false", "Yes", "No", "True", "False",
-                    "YES", "NO", "TRUE", "FALSE", "y", "n", "Y", "N", "1", "0",
+                    "yes",
+                    "no",
+                    "true",
+                    "false",
+                    "Yes",
+                    "No",
+                    "True",
+                    "False",
+                    "YES",
+                    "NO",
+                    "TRUE",
+                    "FALSE",
+                    "y",
+                    "n",
+                    "Y",
+                    "N",
+                    "1",
+                    "0",
                 }
                 for member in type_to_check:
                     if isinstance(member.value, str) and member.value.lower() in {

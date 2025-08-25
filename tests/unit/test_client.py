@@ -4,22 +4,22 @@ import json
 import os
 import tempfile
 import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, Union
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from google.api_core.exceptions import NotFound
+from pydantic import BaseModel
 
 from pyrtex.client import Job
 from pyrtex.config import GenerationConfig, InfrastructureConfig
 from pyrtex.exceptions import ConfigurationError, JobFailedError
 from tests.conftest import FileInput, SimpleInput, SimpleOutput
+
 # Additional coverage tests for pyrtex.client Job edge branches
 
-from datetime import datetime
-from typing import Union, Dict
-
-from pydantic import BaseModel
 
 class TestJobInitialization:
     """Test Job class initialization and configuration."""
@@ -512,7 +512,9 @@ class TestJobRequestManagement:
 
         assert "Cannot add requests after job has been submitted" in str(exc_info.value)
 
-    def test_add_request_with_override_schema_triggers_validation(self, mock_gcp_clients):
+    def test_add_request_with_override_schema_triggers_validation(
+        self, mock_gcp_clients
+    ):
         """Test that providing an override schema runs validation (covers line 341)."""
         from pydantic import BaseModel, Field
 
@@ -726,22 +728,48 @@ class TestJobResults:
         unknown_row = Mock()
         unknown_row.id = "unknown_instance"
         unknown_row.status = None
-        unknown_row.response = json.dumps({
-            "candidates": [
-                {"content": {"parts": [{"functionCall": {"name": "extract_info", "args": {"result": "ignored"}}}]}}
-            ],
-            "usageMetadata": {"totalTokenCount": 1}
-        })
+        unknown_row.response = json.dumps(
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "functionCall": {
+                                        "name": "extract_info",
+                                        "args": {"result": "ignored"},
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "usageMetadata": {"totalTokenCount": 1},
+            }
+        )
 
         known_row = Mock()
         known_row.id = "known_instance"
         known_row.status = None
-        known_row.response = json.dumps({
-            "candidates": [
-                {"content": {"parts": [{"functionCall": {"name": "extract_info", "args": {"result": "ok"}}}]}}
-            ],
-            "usageMetadata": {"totalTokenCount": 2}
-        })
+        known_row.response = json.dumps(
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "functionCall": {
+                                        "name": "extract_info",
+                                        "args": {"result": "ok"},
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "usageMetadata": {"totalTokenCount": 2},
+            }
+        )
 
         mock_query = Mock()
         mock_query.result.return_value = [unknown_row, known_row]
@@ -752,15 +780,18 @@ class TestJobResults:
         assert results[0].request_key == "known"
         assert results[0].output.result == "ok"
 
+
 class TestSchemaValidationRecursion:
     """Tests covering recursive schema validation branches (lines 847, 913)."""
 
-    def test_recursive_schema_validation_visited_model_short_circuit(self, mock_gcp_clients):
+    def test_recursive_schema_validation_visited_model_short_circuit(
+        self, mock_gcp_clients
+    ):
         """Self-referencing model exercises visited_models early return (line 847)."""
         from pydantic import BaseModel
 
         class Node(BaseModel):
-            children: list['Node'] = []  # Forward self reference via list
+            children: list["Node"] = []  # Forward self reference via list
 
         # Resolve forward refs
         Node.model_rebuild()
@@ -775,7 +806,8 @@ class TestSchemaValidationRecursion:
         assert job.output_schema is Node
 
     def test_recursive_schema_validation_nested_model(self, mock_gcp_clients):
-        """Nested model field triggers recursion into nested Pydantic model (line 913)."""
+        """Nested model field triggers recursion into
+        nested Pydantic model (line 913)."""
         from pydantic import BaseModel
 
         class Inner(BaseModel):
@@ -1968,30 +2000,52 @@ class TestResultsUnknownInstance:
         mock_batch_job.output_info.bigquery_output_table = "bq://project.dataset.table"
         job._batch_job = mock_batch_job
 
-        unknown_row = Mock(id="unknown_id", status=None, response=json.dumps({
-            "candidates": [
+        unknown_row = Mock(
+            id="unknown_id",
+            status=None,
+            response=json.dumps(
                 {
-                    "content": {
-                        "parts": [
-                            {"functionCall": {"name": "extract_info", "args": {"result": "ignored"}}}
-                        ]
-                    }
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "functionCall": {
+                                            "name": "extract_info",
+                                            "args": {"result": "ignored"},
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "usageMetadata": {"totalTokenCount": 1},
                 }
-            ],
-            "usageMetadata": {"totalTokenCount": 1}
-        }))
-        known_row = Mock(id="known_id", status=None, response=json.dumps({
-            "candidates": [
+            ),
+        )
+        known_row = Mock(
+            id="known_id",
+            status=None,
+            response=json.dumps(
                 {
-                    "content": {
-                        "parts": [
-                            {"functionCall": {"name": "extract_info", "args": {"result": "ok"}}}
-                        ]
-                    }
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {
+                                        "functionCall": {
+                                            "name": "extract_info",
+                                            "args": {"result": "ok"},
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "usageMetadata": {"totalTokenCount": 2},
                 }
-            ],
-            "usageMetadata": {"totalTokenCount": 2}
-        }))
+            ),
+        )
 
         mock_bigquery_client = Mock()
         mock_query_job = Mock()
@@ -2008,9 +2062,11 @@ class TestResultsUnknownInstance:
 
 class TestDummyOutputExtraBranches:
     def test_dummy_output_union_field_direct_call(self, mock_gcp_clients):
-        """Directly call _create_dummy_output with a model containing a Union field.
-        Validation prohibits Union for job schemas, but this internal helper should still
+        """Directly call _create_dummy_output with a model
+        containing a Union field. Validation prohibits Union
+        for job schemas, but this internal helper should still
         handle it when invoked directly for robustness."""
+
         class UnionOutput(BaseModel):
             value: Union[int, str]
 
@@ -2027,6 +2083,7 @@ class TestDummyOutputExtraBranches:
 
     def test_dummy_output_datetime_field(self, mock_gcp_clients):
         """Cover datetime field branch in dummy output generation."""
+
         class DateTimeOutput(BaseModel):
             timestamp: datetime
 
@@ -2043,6 +2100,7 @@ class TestDummyOutputExtraBranches:
 class TestSchemaValidationDictKey:
     def test_validate_schema_rejects_non_string_dict_keys(self, mock_gcp_clients):
         """Ensure _validate_schema raises for dict with non-string keys."""
+
         class BadDictModel(BaseModel):
             mapping: Dict[int, str]
 
@@ -2052,5 +2110,7 @@ class TestSchemaValidationDictKey:
             prompt_template="Test",
         )
         # Directly call internal validator to avoid constructing Job with invalid schema
-        with pytest.raises(ValueError, match="Dictionary keys in 'mapping' must be of type str"):
+        with pytest.raises(
+            ValueError, match="Dictionary keys in 'mapping' must be of type str"
+        ):
             job._validate_schema(BadDictModel)

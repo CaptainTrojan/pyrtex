@@ -372,10 +372,12 @@ class TestRealWorldScenarios:
         # variability (will mark failure only if mapping logic is incorrect).
         prompt = (
             "You will receive an 'mode' and 'text'. If mode == 'default', return a "
-            "function call with just {result: <the original text in uppercase>}.")
+            "function call with just {result: <the original text in uppercase>}."
+        )
         prompt += (
             " If mode == 'override', extract the plausible company name and a "
-            "geographic location (guess if needed) and return them as {company, location}."
+            "geographic location (guess if needed) and return them as "
+            "{company, location}."
         )
 
         class MixedInput(BaseModel):
@@ -413,17 +415,17 @@ class TestRealWorldScenarios:
 
         # Default request should use SimpleOutput schema when successful
         if default_result.output is not None:
-            assert isinstance(default_result.output, SimpleOutput), (
-                "Default request output did not use SimpleOutput schema"
-            )
+            assert isinstance(
+                default_result.output, SimpleOutput
+            ), "Default request output did not use SimpleOutput schema"
         else:  # Provide diagnostic context
             print(f"Default schema request returned error: {default_result.error}")
 
         # Override request should use OverrideOutput schema when successful
         if override_result.output is not None:
-            assert isinstance(override_result.output, OverrideOutput), (
-                "Override request output did not use OverrideOutput schema"
-            )
+            assert isinstance(
+                override_result.output, OverrideOutput
+            ), "Override request output did not use OverrideOutput schema"
         else:
             print(f"Override schema request returned error: {override_result.error}")
 
@@ -431,7 +433,10 @@ class TestRealWorldScenarios:
         print("\n🔎 Per-request schema override summary:")
         for r in results:
             schema_name = type(r.output).__name__ if r.output else "<no output>"
-            print(f" - {r.request_key}: success={r.was_successful} schema={schema_name} error={r.error}")
+            print(
+                f" - {r.request_key}: success={r.was_successful} "
+                f"schema={schema_name} error={r.error}"
+            )
 
 
 class TestErrorScenarios:

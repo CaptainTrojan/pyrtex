@@ -6,6 +6,7 @@ outputs by supplying an alternate output_schema in add_request().
 Run (simulation mode, no GCP access needed):
     python examples/08_schema_overrides.py
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -31,6 +32,7 @@ class CompanyInfo(BaseModel):
 
 # ------------------------------ Main Logic ------------------------------ #
 
+
 def main():
     # Create a job with a GLOBAL default output schema (PersonInfo)
     job = Job(
@@ -38,7 +40,8 @@ def main():
         output_schema=PersonInfo,  # default schema
         prompt_template=(
             "Extract structured data. Return a function call that matches the schema.\n"
-            "If describing a person, include name & email. For a company, include name & domain.\n"
+            "If describing a person, include name & email. For a company, include name"
+            " & domain.\n"
             "Content: {{ text }}"
         ),
     )
