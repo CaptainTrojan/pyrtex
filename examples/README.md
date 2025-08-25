@@ -63,6 +63,12 @@ Processing different file types (images, PDFs, text, audio, video) in one batch.
 - Images, PDFs, YAML, JSON, audio, video
 - Unified data extraction
 
+### 8. Schema Overrides (`08_schema_overrides.py`)
+Using different output schemas within a single batch job.
+- Global default schema + per-request overrides
+- Heterogeneous structured outputs (e.g., PersonInfo vs CompanyInfo)
+- Demonstrates adding requests with `output_schema=` argument
+
 ## Key Concepts
 
 **Basic Workflow:**
