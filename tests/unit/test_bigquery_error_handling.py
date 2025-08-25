@@ -21,7 +21,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with status containing error dict
         mock_rows = [
@@ -62,7 +62,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with status containing error string
         mock_rows = [
@@ -101,7 +101,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with status without error key
         mock_rows = [
@@ -140,7 +140,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with invalid JSON status
         mock_rows = [
@@ -179,7 +179,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with empty response
         mock_rows = [
@@ -218,7 +218,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with invalid JSON response
         mock_rows = [
@@ -257,7 +257,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with response containing error dict
         mock_rows = [
@@ -305,7 +305,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with response containing error string
         mock_rows = [
@@ -353,7 +353,7 @@ class TestBigQueryErrorHandling:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with status as dict (not JSON string)
         mock_rows = [

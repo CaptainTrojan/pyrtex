@@ -414,8 +414,8 @@ class TestRealBigQueryResultParsing:
 
         # Set up the job as if it was submitted
         job._instance_map = {
-            "req_00000_12345678": "test_key_1",
-            "req_00001_87654321": "test_key_2",
+            "req_00000_12345678": ("test_key_1", SimpleOutput),
+            "req_00001_87654321": ("test_key_2", SimpleOutput),
         }
 
         # Create mock BigQuery rows that simulate real response data
@@ -524,7 +524,7 @@ class TestRealBigQueryResultParsing:
             prompt_template="Test: {{ word }}",
         )
 
-        job._instance_map = {"req_00000_12345678": "test_key_1"}
+        job._instance_map = {"req_00000_12345678": ("test_key_1", SimpleOutput)}
 
         # Create mock row with invalid response (no function call)
         mock_rows = [
@@ -592,9 +592,9 @@ class TestRealBigQueryResultParsing:
 
         # Set up instance map with multiple requests
         job._instance_map = {
-            "req_00000_batch_0": "batch_0",
-            "req_00001_batch_1": "batch_1",
-            "req_00002_batch_2": "batch_2",
+            "req_00000_batch_0": ("batch_0", SimpleOutput),
+            "req_00001_batch_1": ("batch_1", SimpleOutput),
+            "req_00002_batch_2": ("batch_2", SimpleOutput),
         }
 
         # Create mock rows that come back in DIFFERENT order than submitted

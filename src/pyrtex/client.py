@@ -383,11 +383,16 @@ class Job(Generic[T]):
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 
-    def _get_flattened_schema(self, schema_to_flatten: Type[BaseModel]) -> dict:
+    def _get_flattened_schema(self, schema_to_flatten: Optional[Type[BaseModel]] = None) -> dict:
+        """Generate a flattened JSON schema without $ref references.
+
+        Backwards compatibility: prior versions exposed this helper without
+        requiring an argument and implicitly operated on the job's global
+        ``output_schema``. Tests (and potentially user code) still call it
+        with no argument, so ``schema_to_flatten`` is optional and defaults
+        to ``self.output_schema`` when omitted.
         """
-        Generate a flattened JSON schema without $ref references
-        for BigQuery compatibility.
-        """
+        schema_to_flatten = schema_to_flatten or self.output_schema
         schema = schema_to_flatten.model_json_schema()
 
         if "$defs" not in schema:
@@ -431,6 +436,9 @@ class Job(Generic[T]):
 
             # Determine which schema to use and store it for result parsing
             schema_to_use = override_schema or self.output_schema
+            # Store mapping for result parsing. We always store tuples in the
+            # new implementation. The results() method still tolerates legacy
+            # string-only entries for backwards compatibility.
             self._instance_map[instance_id] = (request_key, schema_to_use)
 
             parts = []
@@ -648,8 +656,9 @@ class Job(Generic[T]):
                 if not lookup_result:
                     logger.warning(f"Could not find request data for instance ID '{instance_id}'. Skipping.")
                     continue
-                
-                request_key, schema_used = lookup_result
+
+                # Expect new tuple-based mapping (request_key, schema)
+                request_key, schema_used = lookup_result  # type: ignore[misc]
 
                 result_args = {
                     "request_key": request_key,

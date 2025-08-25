@@ -339,7 +339,7 @@ class TestEnumValidation:
         error_msg = str(exc_info.value)
         assert "Enum value 'yes'" in error_msg
         assert "conflicts with JSON boolean interpretation" in error_msg
-        assert "'recommend'/'not_recommend'" in error_msg
+        assert "'approved'/'rejected'" in error_msg
 
     def test_various_problematic_enum_values(self, mock_gcp_clients):
         """Test that various problematic enum values are all caught."""
@@ -405,7 +405,7 @@ class TestEnumValidation:
         assert job is not None
 
     def test_optional_enum_validation(self, mock_gcp_clients):
-        """Test that Optional[Enum] types are also validated."""
+        """Test that Optional[Enum] types are rejected (Optional/Union not allowed)."""
         from enum import Enum
         from typing import Optional
 
@@ -426,8 +426,8 @@ class TestEnumValidation:
             )
 
         error_msg = str(exc_info.value)
-        assert "Enum value" in error_msg
-        assert "conflicts with JSON boolean interpretation" in error_msg
+        assert ("Optional type" in error_msg) or ("Union type" in error_msg)
+        assert "not supported" in error_msg
 
     def test_non_enum_fields_ignored(self, mock_gcp_clients):
         """Test that non-enum fields are not affected by validation."""
@@ -1117,9 +1117,10 @@ class TestPayloadGeneration:
         assert id1.startswith("req_00000_")
         assert id2.startswith("req_00001_")
 
-        # Check that instance map is populated
-        assert "key1" in job._instance_map.values()
-        assert "key2" in job._instance_map.values()
+        # Check that instance map is populated (values are (request_key, schema))
+        mapped_keys = {rk for rk, _schema in job._instance_map.values()}
+        assert "key1" in mapped_keys
+        assert "key2" in mapped_keys
 
 
 class TestJobEdgeCases:
@@ -1176,30 +1177,7 @@ class TestJobEdgeCases:
         assert isinstance(result.output.data, list)
         assert result.output.count == 5
 
-    def test_dummy_output_with_union_types(self, mock_gcp_clients):
-        """Test dummy output creation with union types."""
-        from typing import Optional, Union
-
-        from pydantic import BaseModel
-
-        class OutputWithUnion(BaseModel):
-            value: Union[str, int]
-            optional_value: Optional[str] = None
-
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=OutputWithUnion,
-            prompt_template="Test",
-            simulation_mode=True,
-        )
-
-        job.add_request("test", SimpleInput(word="hello"))
-        results = list(job.submit().wait().results())
-
-        assert len(results) == 1
-        result = results[0]
-        assert isinstance(result.output.value, str)
-        assert result.output.value == "dummy_value"
+    # Union type dummy output test removed: schema validation now rejects Union/Optional
 
     def test_dummy_output_with_different_types(self, mock_gcp_clients):
         """Test dummy output creation with different field types."""
@@ -1422,7 +1400,7 @@ class TestJobEdgeCases:
         job.submit()
 
         # Set up instance map
-        job._instance_map = {"req_00001_12345678": "test1"}
+        job._instance_map = {"req_00001_12345678": ("test1", SimpleOutput)}
 
         # Mock BigQuery results
         mock_row = Mock()
@@ -1473,7 +1451,7 @@ class TestJobEdgeCases:
         job.submit()
 
         # Set up instance map
-        job._instance_map = {"req_00001_12345678": "test1"}
+        job._instance_map = {"req_00001_12345678": ("test1", SimpleOutput)}
 
         # Mock BigQuery results without function call
         mock_row = Mock()
@@ -1517,7 +1495,7 @@ class TestJobEdgeCases:
         job.submit()
 
         # Set up instance map
-        job._instance_map = {"req_00001_12345678": "test1"}
+        job._instance_map = {"req_00001_12345678": ("test1", SimpleOutput)}
 
         # Mock BigQuery results with invalid data for schema
         mock_row = Mock()
@@ -1595,7 +1573,7 @@ class TestSchemaFlattening:
             prompt_template="Test",
         )
 
-        flattened = job._get_flattened_schema()
+        flattened = job._get_flattened_schema(job.output_schema)
 
         # Should return the schema as-is since there are no $defs
         assert "$defs" not in flattened
@@ -1623,7 +1601,7 @@ class TestSchemaFlattening:
             prompt_template="Test",
         )
 
-        flattened = job._get_flattened_schema()
+        flattened = job._get_flattened_schema(job.output_schema)
 
         # Should have inlined the enum definition
         assert "$defs" not in flattened
@@ -1655,7 +1633,7 @@ class TestSchemaFlattening:
             prompt_template="Test",
         )
 
-        flattened = job._get_flattened_schema()
+        flattened = job._get_flattened_schema(job.output_schema)
 
         # Should preserve the custom description
         enum_field = flattened["properties"]["enum_field"]
@@ -1682,7 +1660,7 @@ class TestSchemaFlattening:
             prompt_template="Test",
         )
 
-        flattened = job._get_flattened_schema()
+        flattened = job._get_flattened_schema(job.output_schema)
 
         # Should have flattened the list items
         assert "$defs" not in flattened
@@ -1715,7 +1693,7 @@ class TestSchemaFlattening:
         job.output_schema.model_json_schema = lambda: broken_schema
 
         try:
-            flattened = job._get_flattened_schema()
+            flattened = job._get_flattened_schema(job.output_schema)
 
             # Should return the broken $ref as-is since it can't be resolved
             assert (
@@ -1746,7 +1724,7 @@ class TestSchemaFlattening:
         job.output_schema.model_json_schema = lambda: external_ref_schema
 
         try:
-            flattened = job._get_flattened_schema()
+            flattened = job._get_flattened_schema(job.output_schema)
 
             # Should leave external refs unchanged
             assert (

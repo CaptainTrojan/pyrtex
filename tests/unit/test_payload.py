@@ -237,8 +237,8 @@ class TestPayloadGeneration:
         second_id = second_line["id"]
 
         # Check that instance mapping is correct
-        assert job._instance_map[first_id] == "first_key"
-        assert job._instance_map[second_id] == "second_key"
+        assert job._instance_map[first_id][0] == "first_key"
+        assert job._instance_map[second_id][0] == "second_key"
 
         # IDs should be unique
         assert first_id != second_id

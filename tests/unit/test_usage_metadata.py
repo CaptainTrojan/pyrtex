@@ -131,7 +131,7 @@ class TestBigQueryResultParsing:
         )
 
         # Set up the job as submitted and succeeded
-        job._instance_map = {"req_00000_12345678": "test_key"}
+        job._instance_map = {"req_00000_12345678": ("test_key", SimpleOutput)}
 
         # Create mock row where response is already a dict (not JSON string)
         mock_row = Mock()
