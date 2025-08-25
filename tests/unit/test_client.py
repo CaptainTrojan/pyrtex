@@ -787,7 +787,8 @@ class TestSchemaValidationRecursion:
     def test_recursive_schema_validation_visited_model_short_circuit(
         self, mock_gcp_clients
     ):
-        """Duplicate nested model references trigger early-return branch on all Python versions.
+        """Duplicate nested model references trigger
+        early-return branch on all Python versions.
 
         Using two fields referencing the same nested model ensures the validator
         encounters the identical model class twice (second time hits visited check)
@@ -800,7 +801,9 @@ class TestSchemaValidationRecursion:
 
         class Wrapper(BaseModel):
             first: SharedNested
-            second: SharedNested  # Second reference exercises visited-model early return
+            second: (
+                SharedNested  # Second reference exercises visited-model early return
+            )
 
         job = Job(
             model="gemini-2.0-flash-lite-001",
