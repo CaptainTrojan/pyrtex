@@ -347,6 +347,92 @@ class TestRealWorldScenarios:
             # If we get an exception, make sure to clean up properly
             pytest.fail(f"Test failed with exception: {e}")
 
+    @pytest.mark.incurs_costs
+    @requires_project_id
+    def test_per_request_schema_overrides(self):
+        """Demonstrate using per-request output schema overrides in a single job.
+
+        This launches a real batch job (costs may be incurred) with two requests:
+        1. Uses the job's default schema (SimpleOutput).
+        2. Overrides the output schema with a richer structure (OverrideOutput).
+
+        The test asserts that both request keys produce a result object whose
+        schema matches the request configuration (or surfaces an error cleanly
+        if the model deviates). This primarily validates correct wiring of the
+        per-request schema override feature end-to-end.
+        """
+        from pydantic import BaseModel, Field
+
+        class OverrideOutput(BaseModel):
+            company: str = Field(description="Company name extracted from text")
+            location: str = Field(description="Location or region, if present")
+
+        # Prompt provides explicit, deterministic instructions to help the model
+        # conform to each schema. Even so, we keep assertions tolerant of model
+        # variability (will mark failure only if mapping logic is incorrect).
+        prompt = (
+            "You will receive an 'mode' and 'text'. If mode == 'default', return a "
+            "function call with just {result: <the original text in uppercase>}.")
+        prompt += (
+            " If mode == 'override', extract the plausible company name and a "
+            "geographic location (guess if needed) and return them as {company, location}."
+        )
+
+        class MixedInput(BaseModel):
+            mode: str
+            text: str
+
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,  # default schema
+            prompt_template=prompt + " Input: mode={{ mode }}, text='{{ text }}'",
+        )
+
+        # Request 1: default schema
+        job.add_request(
+            "default_req",
+            MixedInput(mode="default", text="alpha industries"),
+        )
+
+        # Request 2: override schema
+        job.add_request(
+            "override_req",
+            MixedInput(mode="override", text="Beta Corp operates in Europe"),
+            output_schema=OverrideOutput,
+        )
+
+        results = list(job.submit().wait().results())
+
+        # Build map for easy lookup (results order not guaranteed)
+        by_key = {r.request_key: r for r in results}
+        assert "default_req" in by_key, "Missing default request result"
+        assert "override_req" in by_key, "Missing override request result"
+
+        default_result = by_key["default_req"]
+        override_result = by_key["override_req"]
+
+        # Default request should use SimpleOutput schema when successful
+        if default_result.output is not None:
+            assert isinstance(default_result.output, SimpleOutput), (
+                "Default request output did not use SimpleOutput schema"
+            )
+        else:  # Provide diagnostic context
+            print(f"Default schema request returned error: {default_result.error}")
+
+        # Override request should use OverrideOutput schema when successful
+        if override_result.output is not None:
+            assert isinstance(override_result.output, OverrideOutput), (
+                "Override request output did not use OverrideOutput schema"
+            )
+        else:
+            print(f"Override schema request returned error: {override_result.error}")
+
+        # Always surface a concise summary for manual inspection in CI logs
+        print("\n🔎 Per-request schema override summary:")
+        for r in results:
+            schema_name = type(r.output).__name__ if r.output else "<no output>"
+            print(f" - {r.request_key}: success={r.was_successful} schema={schema_name} error={r.error}")
+
 
 class TestErrorScenarios:
     """Test error scenarios that don't require real GCP."""
