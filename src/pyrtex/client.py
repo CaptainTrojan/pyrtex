@@ -27,17 +27,26 @@ class Job(Generic[T]):
     Manages the configuration, submission, and retrieval for a
     Vertex AI Batch Prediction Job.
 
-    The generic type parameter T should match the output_schema for type safety:
+    The generic type parameter T should match the global output_schema for type safety.
+    You can override the schema for individual requests using .add_request().
 
-    Example:
+    Example (Single Schema):
         job = Job[ContactInfo](
-            model="gemini-2.0-flash-lite-001",
-            output_schema=ContactInfo,  # Must match the generic type T
+            model="gemini-1.5-flash-001",
+            output_schema=ContactInfo,
             prompt_template="Extract contact info: {{ content }}"
         )
+        job.add_request("req1", MyInput(content="..."))
+        # Type checkers will know that results are of type BatchResult[ContactInfo]
+        # (Note: the return type hint is now BatchResult[Any] for flexibility)
 
-    The generic type T provides static type checking for the results,
-    while output_schema is used at runtime for validation and schema generation.
+    Example (Multiple Schemas):
+        # Set a default schema for the job
+        job = Job[ContactInfo](model="...", output_schema=ContactInfo, ...)
+        # Use the default schema for this request
+        job.add_request("req1", MyInput(content="..."))
+        # Override the schema for another request
+        job.add_request("req2", MyInput(content="..."), output_schema=CompanyInfo)
 
     Warning: This class is not thread-safe. Do not share Job instances
     across multiple threads without proper synchronization.
@@ -59,12 +68,12 @@ class Job(Generic[T]):
         self.config = config or InfrastructureConfig()
         self.simulation_mode = simulation_mode
 
-        # Validate schema for problematic enum values
-        self._validate_enum_values()
+        # Validate the global schema for problematic enum values
+        self._validate_enum_values(self.output_schema)
 
         self._session_id: str = uuid.uuid4().hex[:10]
-        self._requests: List[tuple[Hashable, BaseModel]] = []
-        self._instance_map: Dict[str, Hashable] = {}
+        self._requests: List[tuple[Hashable, BaseModel, Optional[Type[BaseModel]]]] = []
+        self._instance_map: Dict[str, tuple[Hashable, Type[BaseModel]]] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
 
         self._jinja_env = jinja2.Environment()
@@ -303,19 +312,35 @@ class Job(Generic[T]):
         self._bigquery_client.update_dataset(dataset, ["default_table_expiration_ms"])
         logger.info("BigQuery dataset is ready.")
 
-    def add_request(self, request_key: Hashable, data: BaseModel) -> "Job[T]":
-        """Adds a single, structured request to the batch."""
+    def add_request(
+        self,
+        request_key: Hashable,
+        data: BaseModel,
+        output_schema: Optional[Type[BaseModel]] = None,
+    ) -> "Job[T]":
+        """
+        Adds a single, structured request to the batch.
+
+        Args:
+            request_key: A unique, hashable identifier for this request.
+            data: A Pydantic model instance containing the input data for the prompt.
+            output_schema: (Optional) A Pydantic model to use as the output schema
+                for this specific request, overriding the job's default schema.
+        """
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
 
         # Check for duplicate request keys
-        existing_keys = {key for key, _ in self._requests}
-        if request_key in existing_keys:
+        if any(key == request_key for key, _, _ in self._requests):
             msg = f"Request key '{request_key}' already exists. "
             msg += "Use a unique key for each request."
             raise ValueError(msg)
 
-        self._requests.append((request_key, data))
+        # If an override schema is provided, validate it
+        if output_schema:
+            self._validate_enum_values(output_schema)
+
+        self._requests.append((request_key, data, output_schema))
         return self
 
     def _upload_file_to_gcs(
@@ -334,55 +359,21 @@ class Job(Generic[T]):
             ext = source_path.suffix.lower()
 
             # Map file extensions to Gemini-supported MIME types only
-            # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/
-            #            model-reference/gemini
             gemini_supported_types = {
-                # Text files - all map to text/plain
-                ".txt": "text/plain",
-                ".yaml": "text/plain",
-                ".yml": "text/plain",
-                ".json": "text/plain",  # JSON files are text, not application/json
-                ".xml": "text/plain",
-                ".csv": "text/plain",
-                ".tsv": "text/plain",
-                ".md": "text/plain",
-                ".rst": "text/plain",
-                ".log": "text/plain",
-                ".ini": "text/plain",
-                ".cfg": "text/plain",
-                ".conf": "text/plain",
-                ".py": "text/plain",
-                ".js": "text/plain",
-                ".css": "text/plain",
-                ".html": "text/plain",
-                ".htm": "text/plain",
-                ".sql": "text/plain",
-                ".sh": "text/plain",
-                ".bat": "text/plain",
-                ".ps1": "text/plain",
-                # PDF files
-                ".pdf": "application/pdf",
-                # Image files
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".webp": "image/webp",
-                # Audio files
-                ".mp3": "audio/mp3",
-                ".mpeg": "audio/mpeg",
-                ".wav": "audio/wav",
-                # Video files
-                ".mov": "video/mov",
-                ".mp4": "video/mp4",
-                ".mpv": "video/mpeg",  # Use .mpv for video mpeg to avoid duplicate
-                ".mpg": "video/mpg",
-                ".avi": "video/avi",
-                ".wmv": "video/wmv",
+                ".txt": "text/plain", ".yaml": "text/plain", ".yml": "text/plain",
+                ".json": "text/plain", ".xml": "text/plain", ".csv": "text/plain",
+                ".tsv": "text/plain", ".md": "text/plain", ".rst": "text/plain",
+                ".log": "text/plain", ".ini": "text/plain", ".cfg": "text/plain",
+                ".conf": "text/plain", ".py": "text/plain", ".js": "text/plain",
+                ".css": "text/plain", ".html": "text/plain", ".htm": "text/plain",
+                ".sql": "text/plain", ".sh": "text/plain", ".bat": "text/plain",
+                ".ps1": "text/plain", ".pdf": "application/pdf", ".png": "image/png",
+                ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+                ".mp3": "audio/mp3", ".mpeg": "audio/mpeg", ".wav": "audio/wav",
+                ".mov": "video/mov", ".mp4": "video/mp4", ".mpv": "video/mpeg",
+                ".mpg": "video/mpg", ".avi": "video/avi", ".wmv": "video/wmv",
                 ".flv": "video/flv",
             }
-
-            # Use our mapping if available, otherwise default to text/plain
-            # for unknown extensions
             mime_type = gemini_supported_types.get(ext, "text/plain")
 
         if isinstance(source, bytes):
@@ -392,18 +383,16 @@ class Job(Generic[T]):
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 
-    def _get_flattened_schema(self) -> dict:
+    def _get_flattened_schema(self, schema_to_flatten: Type[BaseModel]) -> dict:
         """
         Generate a flattened JSON schema without $ref references
         for BigQuery compatibility.
         """
-        schema = self.output_schema.model_json_schema()
+        schema = schema_to_flatten.model_json_schema()
 
-        # If there are no $defs, return as-is
         if "$defs" not in schema:
             return schema
 
-        # Flatten the schema by inlining all $ref references
         defs = schema.pop("$defs", {})
 
         def resolve_refs(obj):
@@ -413,28 +402,21 @@ class Job(Generic[T]):
                     if ref_path.startswith("#/$defs/"):
                         def_name = ref_path.replace("#/$defs/", "")
                         if def_name in defs:
-                            # Get the resolved definition
                             resolved = resolve_refs(defs[def_name].copy())
-                            # Preserve any properties from the original object
-                            # (like description)
                             original_props = {
                                 k: v for k, v in obj.items() if k != "$ref"
                             }
                             resolved.update(original_props)
                             return resolved
                         else:
-                            # If ref not found, return the ref as-is (shouldn't happen)
                             return obj
                     else:
                         return obj
                 else:
-                    # Recursively resolve refs in all dictionary values
                     return {k: resolve_refs(v) for k, v in obj.items()}
             elif isinstance(obj, list):
-                # Recursively resolve refs in all list items
                 return [resolve_refs(item) for item in obj]
             else:
-                # Return primitive values as-is
                 return obj
 
         return resolve_refs(schema)
@@ -444,9 +426,12 @@ class Job(Generic[T]):
         jsonl_lines = []
         gcs_session_folder = f"batch-inputs/{self._session_id}"
 
-        for i, (request_key, data_model) in enumerate(self._requests):
+        for i, (request_key, data_model, override_schema) in enumerate(self._requests):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
-            self._instance_map[instance_id] = request_key
+
+            # Determine which schema to use and store it for result parsing
+            schema_to_use = override_schema or self.output_schema
+            self._instance_map[instance_id] = (request_key, schema_to_use)
 
             parts = []
             template_context = {}
@@ -454,7 +439,6 @@ class Job(Generic[T]):
 
             for field_name, value in data_dict.items():
                 if isinstance(value, (bytes, Path)):  # If is file data
-                    # This is file data. Upload it.
                     if isinstance(value, Path):
                         filename = value.name
                     else:
@@ -466,15 +450,12 @@ class Job(Generic[T]):
                         {"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}}
                     )
                 else:
-                    # This is text data for the prompt template.
                     template_context[field_name] = value
 
-            # Render the prompt template with the text data
             template = self._jinja_env.from_string(self.prompt_template)
             rendered_prompt = template.render(template_context)
             parts.append({"text": rendered_prompt})
 
-            # Assemble the final JSONL line for this request
             instance_payload = {
                 "id": instance_id,
                 "request": {
@@ -491,7 +472,9 @@ class Job(Generic[T]):
                                         "Extracts structured information "
                                         "based on the schema."
                                     ),
-                                    "parameters": (self._get_flattened_schema()),
+                                    "parameters": (
+                                        self._get_flattened_schema(schema_to_use)
+                                    ),
                                 }
                             ]
                         }
@@ -512,7 +495,6 @@ class Job(Generic[T]):
 
         if self.simulation_mode:
             logger.info("Simulation mode enabled. Skipping job submission.")
-            # In simulation mode, create a mock job object instead of a string
             from unittest.mock import Mock
 
             self._batch_job = Mock()
@@ -539,13 +521,11 @@ class Job(Generic[T]):
             print("Dry run enabled. Job was not submitted.", file=sys.stderr)
             return self
 
-        # Upload the generated payload to GCS
         gcs_session_folder = f"batch-inputs/{self._session_id}"
         gcs_path = f"{gcs_session_folder}/input.jsonl"
         gcs_uri, _ = self._upload_file_to_gcs(jsonl_payload.encode("utf-8"), gcs_path)
         logger.info(f"Uploaded JSONL payload to {gcs_uri}")
 
-        # Submit the job
         job_display_name = f"pyrtex-job-{self._session_id}"
         project_id = self.config.project_id
         dataset_id = self.config.bq_dataset_id
@@ -572,7 +552,6 @@ class Job(Generic[T]):
         logger.info(f"Batch job submitted: {self._batch_job.resource_name}")
         location = self.config.location
         batch_job_name = self._batch_job.name
-        project_id = self.config.project_id
         console_url = (
             f"https://console.cloud.google.com/vertex-ai/locations/{location}/"
             f"batch-predictions/{batch_job_name}?project={project_id}"
@@ -604,7 +583,6 @@ class Job(Generic[T]):
 
         processed = usage_metadata.copy()
 
-        # Extract token counts from candidatesTokensDetails
         if "candidatesTokensDetails" in processed and isinstance(
             processed["candidatesTokensDetails"], list
         ):
@@ -616,7 +594,6 @@ class Job(Generic[T]):
                     "candidatesTokensDetails"
                 ][0]["tokenCount"]
 
-        # Extract token counts from promptTokensDetails
         if "promptTokensDetails" in processed and isinstance(
             processed["promptTokensDetails"], list
         ):
@@ -630,10 +607,14 @@ class Job(Generic[T]):
 
         return processed
 
-    def results(self) -> Iterator[BatchResult[T]]:
+    def results(self) -> Iterator[BatchResult[Any]]:
         """
         Retrieves results from the completed job, parsing them into the
-        output schema.
+        appropriate output schema for each request.
+
+        Note: The return type is Iterator[BatchResult[Any]] because a single job
+        can contain requests with different output schemas. You may need to perform
+        a runtime type check (e.g., `isinstance()`) on the `output` attribute.
         """
         if self.simulation_mode:
             yield from self._generate_dummy_results()
@@ -644,7 +625,6 @@ class Job(Generic[T]):
                 "Cannot get results for a job that has not been submitted."
             )
 
-        # Check if job is completed successfully
         if self._batch_job.state != JobState.JOB_STATE_SUCCEEDED:
             job_state = self._batch_job.state
             msg = (
@@ -657,14 +637,19 @@ class Job(Generic[T]):
             "bq://", ""
         )
         logger.info(f"Querying results from BigQuery table: `{output_table}`")
-        # Include status column to check for errors
         query = f"SELECT id, response, status FROM `{output_table}`"
 
         try:
             query_job = self._bigquery_client.query(query)
             for row in query_job.result():
                 instance_id = row.id
-                request_key = self._instance_map.get(instance_id)
+                lookup_result = self._instance_map.get(instance_id)
+
+                if not lookup_result:
+                    logger.warning(f"Could not find request data for instance ID '{instance_id}'. Skipping.")
+                    continue
+                
+                request_key, schema_used = lookup_result
 
                 result_args = {
                     "request_key": request_key,
@@ -672,9 +657,7 @@ class Job(Generic[T]):
                     "usage_metadata": None,
                 }
 
-                # Check status first for errors
                 if hasattr(row, "status") and row.status and row.status != "{}":
-                    # Parse status for error information
                     try:
                         status_dict = (
                             json.loads(row.status)
@@ -700,16 +683,14 @@ class Job(Generic[T]):
                             f"Request failed with status: {row.status}"
                         )
 
-                    yield BatchResult[T](**result_args)
+                    yield BatchResult[Any](**result_args)
                     continue
 
-                # Process successful response
                 if not row.response:
                     result_args["error"] = "Empty response from API"
-                    yield BatchResult[T](**result_args)
+                    yield BatchResult[Any](**result_args)
                     continue
 
-                # Check if response is already a dict or needs to be parsed
                 if isinstance(row.response, dict):
                     response_dict = row.response
                 else:
@@ -717,29 +698,25 @@ class Job(Generic[T]):
                         response_dict = json.loads(row.response)
                     except json.JSONDecodeError as e:
                         result_args["error"] = f"Failed to parse response JSON: {e}"
-                        yield BatchResult[T](**result_args)
+                        yield BatchResult[Any](**result_args)
                         continue
 
                 result_args["raw_response"] = response_dict
 
-                # Process usage metadata to extract token counts
                 usage_metadata = response_dict.get("usageMetadata")
                 processed_usage_metadata = self._process_usage_metadata(usage_metadata)
                 result_args["usage_metadata"] = processed_usage_metadata
 
                 try:
-                    # Extract the function call arguments which contain
-                    # the structured data
                     part = response_dict["candidates"][0]["content"]["parts"][0]
                     if "functionCall" not in part:
                         raise KeyError("Model did not return a function call.")
 
                     args = part["functionCall"]["args"]
-                    parsed_output = self.output_schema.model_validate(args)
+                    parsed_output = schema_used.model_validate(args)
                     result_args["output"] = parsed_output
 
                 except (KeyError, IndexError, TypeError) as e:
-                    # Check if there's an error in the response
                     if "error" in response_dict:
                         error_info = response_dict["error"]
                         if isinstance(error_info, dict):
@@ -755,26 +732,24 @@ class Job(Generic[T]):
                 except Exception as e:
                     result_args["error"] = f"Validation error: {e}"
 
-                yield BatchResult[T](**result_args)
+                yield BatchResult[Any](**result_args)
 
         except Exception as e:
             raise RuntimeError(
                 f"Error querying or parsing BigQuery results: {e}"
             ) from e
 
-    def _generate_dummy_results(self) -> Iterator[BatchResult[T]]:
+    def _generate_dummy_results(self) -> Iterator[BatchResult[Any]]:
         """Generates dummy results for simulation mode."""
-        for request_key, data_model in self._requests:
-            # Generate dummy output data based on the schema
-            dummy_output = self._create_dummy_output()
+        for request_key, _, override_schema in self._requests:
+            schema_to_mock = override_schema or self.output_schema
+            dummy_output = self._create_dummy_output(schema_to_mock)
 
-            # Create a dummy raw response
             raw_response = {
                 "content": {"parts": [{"text": "dummy response"}]},
                 "note": "This is a dummy response generated in simulation mode",
             }
 
-            # Create usage metadata
             usage_metadata = {
                 "promptTokenCount": 0,
                 "candidatesTokenCount": 0,
@@ -788,19 +763,17 @@ class Job(Generic[T]):
                 usage_metadata=usage_metadata,
             )
 
-    def _create_dummy_output(self) -> T:
-        """Creates a dummy output instance based on the output schema."""
+    def _create_dummy_output(self, schema_to_mock: Type[BaseModel] = None) -> BaseModel:
+        """Creates a dummy output instance based on the provided schema."""
         from datetime import datetime
         from typing import get_args, get_origin
 
         from pydantic_core import PydanticUndefined
 
-        # Get the schema fields
-        schema_fields = self.output_schema.model_fields
+        schema_fields = schema_to_mock.model_fields if schema_to_mock else self.output_schema.model_fields
         dummy_data = {}
 
         for field_name, field_info in schema_fields.items():
-            # Check if field has a default value (but not PydanticUndefined)
             if (
                 field_info.default is not None
                 and field_info.default != PydanticUndefined
@@ -810,20 +783,15 @@ class Job(Generic[T]):
             elif field_info.default_factory is not None:
                 dummy_data[field_name] = field_info.default_factory()
             else:
-                # Generate dummy data based on field type annotation
                 field_type = field_info.annotation
-
-                # Handle generic types like Optional[str], list[str], dict[str, str]
                 origin = get_origin(field_type)
                 args = get_args(field_type)
 
                 if origin is Union:
-                    # Get the first non-None type from Union (like Optional[str])
                     field_type = next(
                         (arg for arg in args if arg is not type(None)), str
                     )
                     origin = get_origin(field_type)
-                    args = get_args(field_type)
 
                 if origin is list or field_type is list:
                     dummy_data[field_name] = [f"dummy_{field_name}_item"]
@@ -842,68 +810,43 @@ class Job(Generic[T]):
                 elif field_type == datetime:
                     dummy_data[field_name] = datetime.now()
                 else:
-                    # For complex types, use a string representation
                     dummy_data[field_name] = f"dummy_{field_name}"
 
-        return self.output_schema(**dummy_data)
+        return schema_to_mock(**dummy_data)
 
-    def _validate_enum_values(self):
-        """Validates that enum values don't conflict with JSON boolean
-        interpretation."""
+    def _validate_enum_values(self, schema_to_validate: Type[BaseModel]):
+        """
+        Validates that enum values in a schema don't conflict with JSON boolean
+        interpretation.
+        """
         from enum import Enum
         from typing import get_args, get_origin
 
-        # Problematic enum values that can be interpreted as booleans
         PROBLEMATIC_VALUES = {
-            "yes",
-            "no",
-            "true",
-            "false",
-            "Yes",
-            "No",
-            "True",
-            "False",
-            "YES",
-            "NO",
-            "TRUE",
-            "FALSE",
-            "y",
-            "n",
-            "Y",
-            "N",
-            "1",
-            "0",
+            "yes", "no", "true", "false", "Yes", "No", "True", "False",
+            "YES", "NO", "TRUE", "FALSE", "y", "n", "Y", "N", "1", "0",
         }
 
         def check_field_enums(field_type, field_name: str):
-            """Recursively check field types for problematic enum values."""
-            # Handle Union types (like Optional[Enum])
             origin = get_origin(field_type)
             if origin is not None:
                 args = get_args(field_type)
                 for arg in args:
-                    if arg is not type(None):  # Skip NoneType
+                    if arg is not type(None):
                         check_field_enums(arg, field_name)
                 return
 
-            # Check if this is an enum class
             if isinstance(field_type, type) and issubclass(field_type, Enum):
-                for enum_member in field_type:
-                    enum_value = enum_member.value
-                    if isinstance(enum_value, str) and enum_value.lower() in {
+                for member in field_type:
+                    if isinstance(member.value, str) and member.value.lower() in {
                         v.lower() for v in PROBLEMATIC_VALUES
                     }:
                         raise ValueError(
-                            f"Enum value '{enum_value}' in field "
+                            f"Enum value '{member.value}' in field "
                             f"'{field_name}' of enum '{field_type.__name__}' "
                             f"conflicts with JSON boolean interpretation. "
-                            f"Problematic values: {sorted(PROBLEMATIC_VALUES)}. "
-                            f"Consider using values like "
-                            f"'recommend'/'not_recommend' instead of 'yes'/'no'."
+                            f"Consider using different values."
                         )
 
-        # Check all fields in the output schema
-        schema_fields = self.output_schema.model_fields
-        for field_name, field_info in schema_fields.items():
-            field_type = field_info.annotation
-            check_field_enums(field_type, field_name)
+        for field_name, field_info in schema_to_validate.model_fields.items():
+            check_field_enums(field_info.annotation, field_name)
