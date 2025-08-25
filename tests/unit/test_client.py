@@ -787,23 +787,28 @@ class TestSchemaValidationRecursion:
     def test_recursive_schema_validation_visited_model_short_circuit(
         self, mock_gcp_clients
     ):
-        """Self-referencing model exercises visited_models early return (line 847)."""
+        """Duplicate nested model references trigger early-return branch on all Python versions.
+
+        Using two fields referencing the same nested model ensures the validator
+        encounters the identical model class twice (second time hits visited check)
+        even where forward refs don't re-resolve (e.g. Python 3.9/3.10).
+        """
         from pydantic import BaseModel
 
-        class Node(BaseModel):
-            children: list["Node"] = []  # Forward self reference via list
+        class SharedNested(BaseModel):
+            value: str
 
-        # Resolve forward refs
-        Node.model_rebuild()
+        class Wrapper(BaseModel):
+            first: SharedNested
+            second: SharedNested  # Second reference exercises visited-model early return
 
-        # Should not raise; recursion should short-circuit on second encounter
         job = Job(
             model="gemini-2.0-flash-lite-001",
-            output_schema=Node,
+            output_schema=Wrapper,
             prompt_template="Test",
             simulation_mode=True,
         )
-        assert job.output_schema is Node
+        assert job.output_schema is Wrapper
 
     def test_recursive_schema_validation_nested_model(self, mock_gcp_clients):
         """Nested model field triggers recursion into
