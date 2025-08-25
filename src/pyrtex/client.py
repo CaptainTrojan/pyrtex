@@ -69,7 +69,7 @@ class Job(Generic[T]):
         self.simulation_mode = simulation_mode
 
         # Validate the global schema for problematic enum values
-        self._validate_enum_values(self.output_schema)
+        self._validate_schema(self.output_schema)
 
         self._session_id: str = uuid.uuid4().hex[:10]
         self._requests: List[tuple[Hashable, BaseModel, Optional[Type[BaseModel]]]] = []
@@ -338,7 +338,7 @@ class Job(Generic[T]):
 
         # If an override schema is provided, validate it
         if output_schema:
-            self._validate_enum_values(output_schema)
+            self._validate_schema(output_schema)
 
         self._requests.append((request_key, data, output_schema))
         return self
@@ -814,39 +814,94 @@ class Job(Generic[T]):
 
         return schema_to_mock(**dummy_data)
 
-    def _validate_enum_values(self, schema_to_validate: Type[BaseModel]):
+    def _validate_schema(self, schema_to_validate: Type[BaseModel]):
         """
-        Validates that enum values in a schema don't conflict with JSON boolean
-        interpretation.
+        Validates that a Pydantic schema is compatible with Vertex AI's
+        function calling requirements. This check is recursive.
+
+        Specifically, it prohibits:
+        1.  Union and Optional types, which generate `anyOf` in JSON Schema
+            and are not supported by Vertex AI.
+        2.  Enum values that can be misinterpreted as booleans (e.g., "yes", "no").
         """
         from enum import Enum
-        from typing import get_args, get_origin
+        from typing import Any, get_args, get_origin, Union
+        from pydantic import BaseModel
 
-        PROBLEMATIC_VALUES = {
-            "yes", "no", "true", "false", "Yes", "No", "True", "False",
-            "YES", "NO", "TRUE", "FALSE", "y", "n", "Y", "N", "1", "0",
-        }
+        # Using a set for efficient lookup of visited models to prevent infinite recursion
+        # in case of self-referencing models.
+        visited_models = set()
 
-        def check_field_enums(field_type, field_name: str):
-            origin = get_origin(field_type)
-            if origin is not None:
-                args = get_args(field_type)
-                for arg in args:
-                    if arg is not type(None):
-                        check_field_enums(arg, field_name)
+        def _recursive_validate(model_to_check: Type[BaseModel], parent_path: str = ""):
+            """Inner function to recursively validate nested models."""
+            if model_to_check in visited_models:
                 return
+            visited_models.add(model_to_check)
 
-            if isinstance(field_type, type) and issubclass(field_type, Enum):
-                for member in field_type:
+            for field_name, field_info in model_to_check.model_fields.items():
+                current_path = f"{parent_path}.{field_name}" if parent_path else field_name
+                _check_field_type(field_info.annotation, current_path)
+
+        def _check_field_type(field_type: Any, field_path: str):
+            """
+            Recursively checks a type annotation for compatibility issues within a field.
+            """
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
+            # --- 1. Prohibit Union and Optional types ---
+            if origin is Union:
+                # Identify if it's Optional[T] (i.e., Union[T, None]) for a clearer error message
+                is_optional = len(args) == 2 and args[1] is type(None)
+                error_type = "Optional" if is_optional else "Union"
+
+                raise ValueError(
+                    f"Field '{field_path}' uses an {error_type} type, which is not "
+                    f"supported by Vertex AI function calling as it produces 'anyOf' "
+                    f"in the schema. Consider making the field required and providing a "
+                    f"default value (e.g., an empty string '' or an empty list []) "
+                    f"instead of None."
+                )
+
+            # --- 2. Recurse into generic container types ---
+            if origin in (list, dict):
+                if origin is list and args:
+                    # For list[T], check T
+                    _check_field_type(args[0], f"{field_path}[]")
+                elif origin is dict and args:
+                    # For dict[K, V], keys must be strings and we check V
+                    if args[0] is not str:
+                        raise ValueError(
+                            f"Dictionary keys in '{field_path}' must be of type str "
+                            f"for JSON compatibility."
+                        )
+                    _check_field_type(args[1], f"{field_path}.value")
+                return # Stop processing after handling the container
+
+            # Use the origin if it exists (like `list` from `list[str]`),
+            # otherwise use the type itself.
+            type_to_check = origin or field_type
+
+            # --- 3. Check for problematic Enum values ---
+            if isinstance(type_to_check, type) and issubclass(type_to_check, Enum):
+                PROBLEMATIC_VALUES = {
+                    "yes", "no", "true", "false", "Yes", "No", "True", "False",
+                    "YES", "NO", "TRUE", "FALSE", "y", "n", "Y", "N", "1", "0",
+                }
+                for member in type_to_check:
                     if isinstance(member.value, str) and member.value.lower() in {
                         v.lower() for v in PROBLEMATIC_VALUES
                     }:
                         raise ValueError(
-                            f"Enum value '{member.value}' in field "
-                            f"'{field_name}' of enum '{field_type.__name__}' "
-                            f"conflicts with JSON boolean interpretation. "
-                            f"Consider using different values."
+                            f"Enum value '{member.value}' in '{field_path}' of enum "
+                            f"'{type_to_check.__name__}' conflicts with JSON boolean "
+                            f"interpretation. Consider using different values (e.g., "
+                            f"'approved'/'rejected' instead of 'yes'/'no')."
                         )
 
-        for field_name, field_info in schema_to_validate.model_fields.items():
-            check_field_enums(field_info.annotation, field_name)
+            # --- 4. Recurse into nested Pydantic models ---
+            if isinstance(type_to_check, type) and issubclass(type_to_check, BaseModel):
+                _recursive_validate(type_to_check, field_path)
+
+        # Start the validation process from the top-level schema
+        _recursive_validate(schema_to_validate)
