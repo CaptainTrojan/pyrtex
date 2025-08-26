@@ -71,20 +71,31 @@ for result in job.submit().wait().results():
         print(f"Error: {result.error}")
 ```
 
+Check out the [examples](https://github.com/CaptainTrojan/pyrtex/tree/main/examples) directory for diverse, concrete usage examples.
+
 ## 📋 Core Workflow
 
 PyRTex uses a simple 3-step workflow:
 
 ### 1. Configure & Add Data
 ```python
-job = Job[YourSchema](model="gemini-2.0-flash-lite-001", ...)
+job = Job(model="gemini-2.0-flash-lite-001", ...)
 job.add_request("key1", YourModel(data="value1"))
 job.add_request("key2", YourModel(data="value2"))
 ```
 
 ### 2. Submit & Wait  
+Can be chained (for synchronous processing)
 ```python
-job.submit().wait()  # Can be chained
+job.submit().wait()
+```
+Or not (for asynchronous processing). Useful if you need to process your inputs in some other way in parallel and then merge the results with what the LLM gives you.
+```python
+job.submit()
+
+do_some_hard_work(...)
+
+job.wait()
 ```
 
 ### 3. Get Results
