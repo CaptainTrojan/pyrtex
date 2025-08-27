@@ -69,25 +69,36 @@ Using different output schemas within a single batch job.
 - Heterogeneous structured outputs (e.g., PersonInfo vs CompanyInfo)
 - Demonstrates adding requests with `output_schema=` argument
 
+### 9. Async / Reconnect Workflow (`09_async_reconnect.py`)
+Non-blocking multi-process pattern using `serialize()` and `reconnect_from_state()`.
+- Process A: submit + serialize + exit
+- Process B: poll status via `is_done`
+- Process C: reconnect & stream results
+- Enables serverless / distributed orchestration (cron, queue workers)
+
 ## Key Concepts
 
-**Basic Workflow:**
+**Synchronous Workflow:**
 ```python
-# 1. Create job
-job = Job(
-    model="gemini-2.0-flash-lite-001",
-    output_schema=YourSchema,
-    prompt_template="Your prompt: {{ input_field }}",
-    simulation_mode=True  # For testing
-)
+for r in job.submit().wait().results():
+    ...
+```
 
-# 2. Add requests
-job.add_request("key", InputData(field="value"))
+**Asynchronous / Multi-Process Workflow:**
+```python
+# Process A
+job.submit()
+state_json = job.serialize()
+# persist state_json
 
-# 3. Process
-for result in job.submit().wait().results():
-    if result.was_successful:
-        print(result.output)
+# Later (Process B/C)
+job = Job.reconnect_from_state(state_json)
+if job.is_done:
+    for r in job.results():
+        ...
+else:
+    # re-schedule / poll later
+    pass
 ```
 
 **Input Types:**

@@ -15,6 +15,7 @@ PyRTex makes it easy to process multiple documents, images, or text snippets wit
 - **🎨 Flexible Templates**: Jinja2 templates for prompt engineering
 - **☁️ GCP Integration**: Seamless Vertex AI and BigQuery integration
 - **🧪 Testing Mode**: Simulate without GCP costs
+- **🔄 Async-Friendly**: Serialize job state & reconnect later (multi-process)
 
 ## 📦 Installation
 
@@ -89,14 +90,42 @@ Can be chained (for synchronous processing)
 ```python
 job.submit().wait()
 ```
-Or not (for asynchronous processing). Useful if you need to process your inputs in some other way in parallel and then merge the results with what the LLM gives you.
+Or separated (classic blocking vs explicit wait):
 ```python
 job.submit()
-
-do_some_hard_work(...)
-
+# do other work
 job.wait()
 ```
+
+### 2b. Asynchronous / Multi-Process Pattern
+You can avoid blocking entirely by serializing job state after submission and reconnecting later (different process / machine / scheduled task):
+```python
+# Process A (submitter)
+job.submit()
+state_json = job.serialize()
+# persist state_json somewhere durable (DB, GCS, S3, queue message)
+
+# Process B (poller / checker)
+re_job = Job.reconnect_from_state(state_json)
+if not re_job.is_done:
+    # job.status can be inspected, then exit / reschedule
+    print("Still running:", re_job.status)
+
+# Process C (collector) – run after poller detects completion
+re_job = Job.reconnect_from_state(state_json)
+if re_job.is_done:
+    for r in re_job.results():
+        if r.was_successful:
+            print(r.request_key, r.output)
+```
+Why serialize? The serialized state contains:
+- Vertex AI batch job resource name
+- InfrastructureConfig (project/location/bucket/dataset)
+- Session ID (for tracing)
+- Instance map (request key ↔ internal instance id ↔ output schema type)
+This allows precise result parsing without retaining the original Job object in memory.
+
+See `examples/09_async_reconnect.py` for a CLI demonstration (start / status / results commands).
 
 ### 3. Get Results
 ```python
@@ -342,68 +371,45 @@ GenerationConfig(temperature=1.2, top_p=0.95, top_k=40)
 
 ## 🎯 Usage Patterns
 
-### For Simulation Mode (No GCP Required)
+### Synchronous (Chained)
 ```python
-job = Job(
-    model="gemini-2.0-flash-lite-001",
-    output_schema=YourSchema,
-    prompt_template="Your prompt",
-    simulation_mode=True  # No GCP setup needed
-)
+for r in job.submit().wait().results():
+    ...
 ```
 
-### For Production (GCP Required)
-
-Set your GCP project ID:
-```bash
-export GOOGLE_PROJECT_ID="your-project-id"
-```
-
-Or configure directly in code:
+### Non-Blocking (Explicit Wait)
 ```python
-from pyrtex.config import InfrastructureConfig
-
-config = InfrastructureConfig(project_id="your-project-id")
-job = Job(
-    model="gemini-2.0-flash-lite-001",
-    output_schema=YourSchema,
-    prompt_template="Your prompt",
-    config=config,
-    simulation_mode=False
-)
+job.submit()
+# do other tasks
+job.wait()
+for r in job.results():
+    ...
 ```
 
-Then authenticate with GCP:
-```bash
-gcloud auth application-default login
+### Async / Distributed (Serialize + Reconnect)
+```python
+# Submit phase
+a_job = Job(...)
+a_job.add_request("k1", Input(...))
+a_job.add_request("k2", Input(...))
+a_job.submit()
+state_json = a_job.serialize()
+# persist state_json externally
+
+# Later (polling)
+re_job = Job.reconnect_from_state(state_json)
+if not re_job.is_done:
+    print("Still running")
+
+# Or even waiting (blocking)
+re_job.wait()
+
+# Later (collection)
+re_job = Job.reconnect_from_state(state_json)
+if re_job.is_done:
+    for r in re_job.results():
+        ...
 ```
-
-### Troubleshooting
-
-**Error: "Project was not passed and could not be determined from the environment"**
-
-This happens when GCP project ID is not set. You have three options:
-
-1. **Use simulation mode** (recommended for testing):
-   ```python
-   simulation_mode=True  # No GCP setup needed
-   ```
-
-2. **Set environment variable**:
-   ```bash
-   export GOOGLE_PROJECT_ID="your-project-id"
-   ```
-
-3. **Configure in code**:
-   ```python
-   from pyrtex.config import InfrastructureConfig
-   config = InfrastructureConfig(project_id="your-project-id")
-   job = Job(..., config=config)
-   ```
-
-**Error: "Could not automatically determine credentials"**
-
-Follow the authentication methods above. For production, use Service Account JSON. For development, use `gcloud auth application-default login`.
 
 ## 📚 Examples
 
