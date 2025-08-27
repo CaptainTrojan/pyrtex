@@ -73,13 +73,15 @@ def mock_bigquery_client():
 
 @pytest.fixture
 def mock_batch_job():
-    """Mock Vertex AI BatchPredictionJob."""
+    """Mock Vertex AI BatchPredictionJob with refresh method for status property."""
     mock_job = Mock(spec=aiplatform.BatchPredictionJob)
     mock_job.resource_name = (
         "projects/test-project/locations/us-central1/batchPredictionJobs/test-job"
     )
     mock_job.name = "test-job"
     mock_job.state = JobState.JOB_STATE_SUCCEEDED
+    # Add refresh method explicitly (may not exist in spec in some lib versions)
+    mock_job.refresh = Mock()
 
     # Mock output_info for results method
     mock_output_info = Mock()
