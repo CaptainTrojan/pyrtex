@@ -1061,8 +1061,6 @@ class Job(Generic[T]):
         """Returns the current state of the Vertex AI job."""
         if not self._batch_job:
             return None
-        # The SDK might cache the state, so we refresh it to get the latest.
-        self._batch_job.refresh()
         return self._batch_job.state
 
     @property
