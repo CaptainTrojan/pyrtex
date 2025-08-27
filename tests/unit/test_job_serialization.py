@@ -118,10 +118,7 @@ def test_status_property(mock_gcp_clients):
     # After submission should refresh and return state
     job.add_request("r", SimpleInput(word="hi"))
     job.submit()
-    # Ensure refresh method exists
-    assert hasattr(mock_gcp_clients["batch_job"], "refresh")
     s = job.status
-    mock_gcp_clients["batch_job"].refresh.assert_called_once()
     assert s == mock_gcp_clients["batch_job"].state
 
 

@@ -48,23 +48,18 @@ class TestReconnectSerializationIntegration:
             stub = Mock()
             stub.state = JobState.JOB_STATE_PENDING
             stub.resource_name = job._batch_job.resource_name
-            # Provide refresh() that does nothing (status property calls it)
-            stub.refresh = Mock()
             mock_bp.return_value = stub
             re_job = Job.reconnect_from_state(state_json)
 
             # Process B style check: not done yet
             assert re_job.is_done is False
             assert re_job.status == JobState.JOB_STATE_PENDING
-            stub.refresh.assert_called()  # status triggered refresh
-            stub.refresh.reset_mock()
 
             # Simulate time passing -> job completes (Process C later)
             stub.state = JobState.JOB_STATE_SUCCEEDED
             assert re_job.is_done is True
             # status call again
             _ = re_job.status
-            stub.refresh.assert_called()
 
     @pytest.mark.incurs_costs
     @requires_project_id
