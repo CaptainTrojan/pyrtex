@@ -22,7 +22,9 @@ def test_serialize_before_submission_raises(mock_gcp_clients):
         output_schema=SimpleOutput,
         prompt_template="Test: {{ word }}",
     )
-    with pytest.raises(RuntimeError, match="Cannot serialize a job that has not been submitted"):
+    with pytest.raises(
+        RuntimeError, match="Cannot serialize a job that has not been submitted"
+    ):
         job.serialize()
 
 
@@ -39,22 +41,33 @@ def test_serialize_happy_path(mock_gcp_clients):
     state_json = job.serialize()
     state = json.loads(state_json)
 
-    assert state["batch_job_resource_name"] == mock_gcp_clients["batch_job"].resource_name
+    assert (
+        state["batch_job_resource_name"] == mock_gcp_clients["batch_job"].resource_name
+    )
     assert state["session_id"] == job._session_id
     assert "infrastructure_config" in state
     assert isinstance(state["instance_map"], dict)
     # Validate each mapping is a two-element sequence [request_key, fq_schema]
     for item in state["instance_map"].values():
         assert isinstance(item, (list, tuple)) and len(item) == 2
-        assert item[1].endswith(('.AltOutput', '.SimpleOutput')) or item[1].endswith('AltOutput') or item[1].endswith('SimpleOutput')
+        assert (
+            item[1].endswith((".AltOutput", ".SimpleOutput"))
+            or item[1].endswith("AltOutput")
+            or item[1].endswith("SimpleOutput")
+        )
     # Ensure both schemas present
-    schema_names = {v[1].split('.')[-1] for v in state["instance_map"].values()}
+    schema_names = {v[1].split(".")[-1] for v in state["instance_map"].values()}
     assert {"SimpleOutput", "AltOutput"}.issubset(schema_names)
 
 
 def test_reconnect_from_state_restores_job(mock_gcp_clients):
     # Create original job with custom infra config values to ensure round-trip
-    config = InfrastructureConfig(project_id="test-project", location="us-central1", gcs_bucket_name="custom-bucket", bq_dataset_id="custom_dataset")
+    config = InfrastructureConfig(
+        project_id="test-project",
+        location="us-central1",
+        gcs_bucket_name="custom-bucket",
+        bq_dataset_id="custom_dataset",
+    )
     job = Job(
         model="gemini-2.0-flash-lite-001",
         output_schema=SimpleOutput,
@@ -84,7 +97,9 @@ def test_reconnect_from_state_restores_job(mock_gcp_clients):
     assert isinstance(re_job._instance_map, dict)
     assert len(re_job._instance_map) == len(job._instance_map)
     # Cannot add new requests after reconnection
-    with pytest.raises(RuntimeError, match="Cannot add requests after job has been submitted"):
+    with pytest.raises(
+        RuntimeError, match="Cannot add requests after job has been submitted"
+    ):
         re_job.add_request("new", SimpleInput(word="x"))
 
 
@@ -93,7 +108,9 @@ def test_reconnect_from_state_import_error(mocker):
     fake_state = {
         "batch_job_resource_name": "projects/x/locations/y/batchPredictionJobs/123",
         "session_id": "abc123",
-        "infrastructure_config": InfrastructureConfig(project_id="p", location="us-central1").model_dump(mode='json'),
+        "infrastructure_config": InfrastructureConfig(
+            project_id="p", location="us-central1"
+        ).model_dump(mode="json"),
         "instance_map": {"req_00000_deadbeef": ("key", "nonexistent.module.Schema")},
     }
     state_json = json.dumps(fake_state)
@@ -102,7 +119,9 @@ def test_reconnect_from_state_import_error(mocker):
     mocker.patch.object(Job, "_initialize_gcp")
     mocker.patch("google.cloud.aiplatform.BatchPredictionJob", return_value=Mock())
 
-    with pytest.raises(RuntimeError, match="Failed to import schema"):  # import error propagated
+    with pytest.raises(
+        RuntimeError, match="Failed to import schema"
+    ):  # import error propagated
         Job.reconnect_from_state(state_json)
 
 

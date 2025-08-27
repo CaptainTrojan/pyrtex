@@ -64,7 +64,8 @@ class TestReconnectSerializationIntegration:
     @pytest.mark.incurs_costs
     @requires_project_id
     def test_real_reconnect_fetch_results(self):
-        """End-to-end cost-incurring test of submit -> serialize -> reconnect -> poll -> results.
+        """End-to-end cost-incurring test of submit -> serialize -> reconnect
+           -> poll -> results.
 
         Does NOT call wait() on original job to mimic Process separation.
         """
@@ -90,7 +91,9 @@ class TestReconnectSerializationIntegration:
         while not re_job.is_done and (time.time() - start) < timeout_s:
             time.sleep(poll_interval)
         if not re_job.is_done:
-            pytest.skip("Job not completed within polling timeout; skipping result assertions")
+            pytest.skip(
+                "Job not completed within polling timeout; skipping result assertions"
+            )
 
         results_reconnected = list(re_job.results())
         rec_map = {r.request_key: r for r in results_reconnected}

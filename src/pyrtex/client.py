@@ -989,7 +989,7 @@ class Job(Generic[T]):
                 # request_key should be a simple type for serialization
                 request_key,
                 # Convert schema type to "module.path.ClassName"
-                f"{schema.__module__}.{schema.__name__}"
+                f"{schema.__module__}.{schema.__name__}",
             )
             for instance_id, (request_key, schema) in self._instance_map.items()
         }
@@ -997,11 +997,11 @@ class Job(Generic[T]):
         state = {
             "batch_job_resource_name": self._batch_job.resource_name,
             "session_id": self._session_id,
-            "infrastructure_config": self.config.model_dump(mode='json'),
+            "infrastructure_config": self.config.model_dump(mode="json"),
             "instance_map": serializable_instance_map,
         }
         return json.dumps(state)
-    
+
     @classmethod
     def reconnect_from_state(cls, state_json: str) -> "Job[T]":
         """
@@ -1026,7 +1026,7 @@ class Job(Generic[T]):
             model="reconnected-job",
             output_schema=BaseModel,
             prompt_template="",
-            config=config
+            config=config,
         )
 
         # Re-initialize GCP clients with the loaded config
@@ -1042,20 +1042,21 @@ class Job(Generic[T]):
         reconnected_job._instance_map = {}
         for instance_id, (req_key, schema_str) in state_data["instance_map"].items():
             try:
-                module_name, class_name = schema_str.rsplit('.', 1)
+                module_name, class_name = schema_str.rsplit(".", 1)
                 module = importlib.import_module(module_name)
                 schema_class = getattr(module, class_name)
                 reconnected_job._instance_map[instance_id] = (req_key, schema_class)
             except (ImportError, AttributeError) as e:
                 msg = f"Failed to import schema '{schema_str}'. "
-                msg += "Ensure the schema definition is available in the Python environment."
+                msg += "Ensure the schema definition is available in the"
+                msg += " Python environment."
                 raise RuntimeError(msg) from e
 
         # This reconnected job is not meant for adding new requests
         reconnected_job._requests = []
 
         return reconnected_job
-    
+
     @property
     def status(self) -> Optional[JobState]:
         """Returns the current state of the Vertex AI job."""

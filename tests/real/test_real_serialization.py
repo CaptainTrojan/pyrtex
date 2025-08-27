@@ -2,6 +2,7 @@
 
 import os
 import time
+
 import pytest
 
 from pyrtex.client import Job
