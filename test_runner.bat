@@ -80,13 +80,13 @@ if "%test_type%"=="real" (
     
     REM Set environment variable and run only real tests
     set "GOOGLE_PROJECT_ID=%project_id%"
-    pytest tests\integration\ -m "incurs_costs" %pytest_verbose% --cov=src --cov-report=xml:reports\coverage.xml
+    pytest tests\integration\ -m "incurs_costs" %pytest_verbose%
 ) else if "%test_type%"=="unit" (
     call :print_header "Running Unit Tests Only"
     pytest tests\unit\ %pytest_verbose% --cov=src --cov-report=xml:reports\coverage.xml --cov-fail-under=100
 ) else if "%test_type%"=="integration" (
     call :print_header "Running Integration Tests (Mocked)"
-    pytest tests\integration\ -m "not incurs_costs" %pytest_verbose% --cov=src --cov-report=xml:reports\coverage.xml
+    pytest tests\integration\ -m "not incurs_costs" %pytest_verbose%
 ) else (
     call :print_header "Running All Mocked Tests"
     call :print_status "Skipping tests that incur GCP costs"
