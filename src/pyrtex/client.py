@@ -72,7 +72,9 @@ class Job(Generic[T]):
         self._validate_schema(self.output_schema)
 
         self._session_id: str = uuid.uuid4().hex[:10]
-        self._requests: List[tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str]]] = []
+        self._requests: List[
+            tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str]]
+        ] = []
         self._instance_map: Dict[str, tuple[Hashable, Type[BaseModel]]] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
 
@@ -456,7 +458,9 @@ class Job(Generic[T]):
         jsonl_lines = []
         gcs_session_folder = f"batch-inputs/{self._session_id}"
 
-        for i, (request_key, data_model, override_schema, override_prompt) in enumerate(self._requests):
+        for i, (request_key, data_model, override_schema, override_prompt) in enumerate(
+            self._requests
+        ):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
 
             # Determine which schema to use and store it for result parsing
@@ -476,7 +480,9 @@ class Job(Generic[T]):
 
                     gcs_path = f"{gcs_session_folder}/{instance_id}/{filename}"
                     gcs_uri, mime_type = self._upload_file_to_gcs(value, gcs_path)
-                    parts.append({"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}})
+                    parts.append(
+                        {"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}}
+                    )
                 else:
                     template_context[field_name] = value
 
@@ -515,11 +521,13 @@ class Job(Generic[T]):
             jsonl_lines.append(json.dumps(instance_payload))
 
         return "\n".join(jsonl_lines)
+
     def _create_pydantic_model_from_schema(
         self, schema: Dict[str, Any]
     ) -> Type[BaseModel]:
         """Dynamically creates a Pydantic model class from a JSON schema dictionary."""
         from pydantic import create_model
+
         model_name = schema.get("title", "DynamicModel")
         fields = {}
         for prop_name, prop_schema in schema.get("properties", {}).items():
@@ -1045,7 +1053,9 @@ class Job(Generic[T]):
         # Recreate models from schema dicts instead of importing
         reconnected_job._instance_map = {}
         for instance_id, (req_key, schema_dict) in state_data["instance_map"].items():
-            schema_class = reconnected_job._create_pydantic_model_from_schema(schema_dict)
+            schema_class = reconnected_job._create_pydantic_model_from_schema(
+                schema_dict
+            )
             reconnected_job._instance_map[instance_id] = (req_key, schema_class)
 
         reconnected_job._requests = []

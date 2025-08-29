@@ -54,7 +54,9 @@ def test_serialize_happy_path(mock_gcp_clients):
         assert "type" in item[1]  # Should contain JSON schema properties
         assert "properties" in item[1]
     # Ensure both schemas present by checking their titles
-    schema_titles = {v[1].get("title", "Unknown") for v in state["instance_map"].values()}
+    schema_titles = {
+        v[1].get("title", "Unknown") for v in state["instance_map"].values()
+    }
     assert {"SimpleOutput", "AltOutput"}.issubset(schema_titles)
 
 
@@ -106,10 +108,8 @@ def test_reconnect_from_state_with_valid_schema_dict(mocker):
     fake_schema = {
         "type": "object",
         "title": "TestSchema",
-        "properties": {
-            "test_field": {"type": "string"}
-        },
-        "required": ["test_field"]
+        "properties": {"test_field": {"type": "string"}},
+        "required": ["test_field"],
     }
     fake_state = {
         "batch_job_resource_name": "projects/x/locations/y/batchPredictionJobs/123",

@@ -2133,7 +2133,7 @@ class TestPydanticModelFromSchema:
             prompt_template="Test",
             simulation_mode=True,
         )
-        
+
         # Schema with all different types to cover all branches
         test_schema = {
             "title": "TestModel",
@@ -2145,16 +2145,16 @@ class TestPydanticModelFromSchema:
                 "array_field": {"type": "array"},
                 "object_field": {"type": "object"},
                 "string_field": {"type": "string"},
-                "unknown_field": {"type": "unknown"}  # Should default to Any
-            }
+                "unknown_field": {"type": "unknown"},  # Should default to Any
+            },
         }
-        
+
         # Call the method to test all type branches
         model_class = job._create_pydantic_model_from_schema(test_schema)
-        
+
         # Verify the model was created correctly
         assert model_class.__name__ == "TestModel"
-        
+
         # Create an instance to verify field types work
         instance = model_class(
             integer_field=42,
@@ -2163,9 +2163,9 @@ class TestPydanticModelFromSchema:
             array_field=["test"],
             object_field={"key": "value"},
             string_field="test",
-            unknown_field="anything"
+            unknown_field="anything",
         )
-        
+
         assert instance.integer_field == 42
         assert instance.number_field == 3.14
         assert instance.boolean_field is True

@@ -41,6 +41,7 @@ Notes:
   * Persist the JSON however you like (database, GCS, message queue, etc.).
   * The instance map embedded in the state preserves per-request output schemas.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -138,6 +139,7 @@ def results(args):
 # -----------------------------------------------------------------------------
 # CLI
 # -----------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Async submit / reconnect example")

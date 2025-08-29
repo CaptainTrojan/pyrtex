@@ -2,8 +2,8 @@
 
 import os
 import tempfile
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Union
 
 import pytest
@@ -352,7 +352,7 @@ class TestRealWorldScenarios:
     @requires_project_id
     def test_per_request_overrides_comprehensive(self):
         """Comprehensive test of per-request prompt template and schema overrides.
-        
+
         Tests all combinations in a single batch job:
         1. Default prompt + default schema (baseline)
         2. Custom prompt + default schema (prompt override only)
@@ -360,163 +360,204 @@ class TestRealWorldScenarios:
         4. Custom prompt + custom schema (both overrides)
         """
         from pydantic import BaseModel, Field
-        
+
         class CompanyInfo(BaseModel):
             name: str = Field(description="Company name")
             industry: str = Field(description="Industry sector")
-            
-        class PersonInfo(BaseModel):  
+
+        class PersonInfo(BaseModel):
             name: str = Field(description="Person's name")
             role: str = Field(description="Job title or role")
-        
+
         class GenericInput(BaseModel):
             text: str
-            
+
         # Job with default settings
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Return the text '{{ text }}' exactly in the result field.",
         )
-        
+
         # Request 1: Default prompt + default schema (baseline)
         job.add_request(
             "default_both",
             GenericInput(text="test message"),
         )
-        
+
         # Request 2: Custom prompt + default schema
         job.add_request(
             "custom_prompt_only",
             GenericInput(text="innovation"),
-            prompt_template="Take '{{ text }}' and return it with '-tech' suffix in result field."
+            prompt_template="Take '{{ text }}' and return it with '-tech' suffix in result field.",
         )
-        
+
         # Request 3: Default prompt + custom schema
         job.add_request(
-            "custom_schema_only", 
+            "custom_schema_only",
             GenericInput(text="Apple Inc operates in technology sector"),
-            output_schema=CompanyInfo
+            output_schema=CompanyInfo,
         )
-        
+
         # Request 4: Custom prompt + custom schema
         job.add_request(
             "custom_both",
             GenericInput(text="Jane Smith works as Senior Engineer at TechCorp"),
             output_schema=PersonInfo,
-            prompt_template="Extract person name and role from: '{{ text }}'. Return as name and role fields."
+            prompt_template="Extract person name and role from: '{{ text }}'. Return as name and role fields.",
         )
-        
+
         results = list(job.submit().wait().results())
         by_key = {r.request_key: r for r in results}
-        
+
         # Verify all requests completed
-        expected_keys = {"default_both", "custom_prompt_only", "custom_schema_only", "custom_both"}
-        assert set(by_key.keys()) == expected_keys, f"Missing results for: {expected_keys - set(by_key.keys())}"
-        
+        expected_keys = {
+            "default_both",
+            "custom_prompt_only",
+            "custom_schema_only",
+            "custom_both",
+        }
+        assert (
+            set(by_key.keys()) == expected_keys
+        ), f"Missing results for: {expected_keys - set(by_key.keys())}"
+
         # Verify schema types match expectations
-        assert isinstance(by_key["default_both"].output, SimpleOutput) if by_key["default_both"].output else True
-        assert isinstance(by_key["custom_prompt_only"].output, SimpleOutput) if by_key["custom_prompt_only"].output else True  
-        assert isinstance(by_key["custom_schema_only"].output, CompanyInfo) if by_key["custom_schema_only"].output else True
-        assert isinstance(by_key["custom_both"].output, PersonInfo) if by_key["custom_both"].output else True
-        
+        assert (
+            isinstance(by_key["default_both"].output, SimpleOutput)
+            if by_key["default_both"].output
+            else True
+        )
+        assert (
+            isinstance(by_key["custom_prompt_only"].output, SimpleOutput)
+            if by_key["custom_prompt_only"].output
+            else True
+        )
+        assert (
+            isinstance(by_key["custom_schema_only"].output, CompanyInfo)
+            if by_key["custom_schema_only"].output
+            else True
+        )
+        assert (
+            isinstance(by_key["custom_both"].output, PersonInfo)
+            if by_key["custom_both"].output
+            else True
+        )
+
         # Log comprehensive results
         print("\n🔎 Per-request overrides comprehensive test results:")
         for key in expected_keys:
             r = by_key[key]
             schema_name = type(r.output).__name__ if r.output else "<no output>"
             result_preview = str(r.output)[:50] + "..." if r.output else "N/A"
-            print(f" - {key}: success={r.was_successful} schema={schema_name} result={result_preview} error={r.error}")
+            print(
+                f" - {key}: success={r.was_successful} schema={schema_name} result={result_preview} error={r.error}"
+            )
 
-    @pytest.mark.incurs_costs  
+    @pytest.mark.incurs_costs
     @requires_project_id
     def test_serialization_with_dynamic_schemas(self):
         """Test self-contained state serialization with dynamically created schemas.
-        
+
         This validates the key new serialization feature: storing schema definitions
         instead of class names, enabling reconnection in stateless environments.
-        
+
         Simulates: Process A submits job -> Process B reconnects -> fetches results
         """
         from pydantic import BaseModel, Field
-        
+
         class DynamicSchema(BaseModel):
             """Schema created dynamically - wouldn't exist in reconnection process"""
+
             extracted_data: str = Field(description="Extracted information")
             confidence: float = Field(description="Confidence score")
-        
+
         class TaskInput(BaseModel):
             content: str
-            
+
         # Job with mixed schema usage
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process: {{ content }}",
         )
-        
+
         # Request 1: Job default schema
         job.add_request(
             "default_schema",
             TaskInput(content="simple text processing"),
         )
-        
-        # Request 2: Dynamic schema override  
+
+        # Request 2: Dynamic schema override
         job.add_request(
             "dynamic_schema",
             TaskInput(content="Extract key information and provide confidence score"),
             output_schema=DynamicSchema,
-            prompt_template="Extract key info from '{{ content }}' and rate confidence 0-1. Return as extracted_data and confidence fields."
+            prompt_template="Extract key info from '{{ content }}' and rate confidence 0-1. Return as extracted_data and confidence fields.",
         )
-        
+
         # Process A: Submit and serialize immediately (no wait)
         job.submit()
         state_json = job.serialize()
-        
+
         # Process B: Reconnect from serialized state (simulates different process/environment)
         reconnected_job = Job.reconnect_from_state(state_json)
-        
+
         # Wait for completion with timeout
         import time
+
         timeout_s = 600  # 10 minutes max
         poll_interval = 15
         start = time.time()
         while not reconnected_job.is_done and (time.time() - start) < timeout_s:
             time.sleep(poll_interval)
-            
+
         if not reconnected_job.is_done:
-            pytest.skip("Job not completed within polling timeout; skipping result assertions")
-            
+            pytest.skip(
+                "Job not completed within polling timeout; skipping result assertions"
+            )
+
         # Fetch results through reconnected job
         results = list(reconnected_job.results())
         by_key = {r.request_key: r for r in results}
-        
+
         # Verify both requests completed
         expected_keys = {"default_schema", "dynamic_schema"}
-        assert set(by_key.keys()) == expected_keys, f"Missing results for: {expected_keys - set(by_key.keys())}"
-        
+        assert (
+            set(by_key.keys()) == expected_keys
+        ), f"Missing results for: {expected_keys - set(by_key.keys())}"
+
         # Critical test: Verify dynamically recreated schemas work correctly
         default_result = by_key["default_schema"]
         dynamic_result = by_key["dynamic_schema"]
-        
+
         if default_result.output:
             # The recreated schema won't be the exact same class, but should have the same structure
-            assert hasattr(default_result.output, 'result'), "Default schema should have 'result' field"
-            assert isinstance(default_result.output.result, str), "Result field should be string"
-            
+            assert hasattr(
+                default_result.output, "result"
+            ), "Default schema should have 'result' field"
+            assert isinstance(
+                default_result.output.result, str
+            ), "Result field should be string"
+
         if dynamic_result.output:
             # The schema was recreated from serialized definition - this is the key test
-            assert hasattr(dynamic_result.output, 'extracted_data'), "Dynamic schema should have 'extracted_data' field"
-            assert hasattr(dynamic_result.output, 'confidence'), "Dynamic schema should have 'confidence' field"
+            assert hasattr(
+                dynamic_result.output, "extracted_data"
+            ), "Dynamic schema should have 'extracted_data' field"
+            assert hasattr(
+                dynamic_result.output, "confidence"
+            ), "Dynamic schema should have 'confidence' field"
             # Type name might be different (DynamicModel vs DynamicSchema) but fields should work
-        
+
         # Log results
         print("\n🔎 Dynamic schema serialization test results:")
         for key in expected_keys:
             r = by_key[key]
             schema_name = type(r.output).__name__ if r.output else "<no output>"
-            print(f" - {key}: success={r.was_successful} schema={schema_name} error={r.error}")
-            if r.output and hasattr(r.output, '__dict__'):
+            print(
+                f" - {key}: success={r.was_successful} schema={schema_name} error={r.error}"
+            )
+            if r.output and hasattr(r.output, "__dict__"):
                 print(f"   Fields: {list(r.output.__dict__.keys())}")
 
 
@@ -525,140 +566,155 @@ class TestSchemaSerializationReversibility:
 
     def test_schema_serialization_structural_equivalence(self, mock_gcp_clients):
         """Test that serialized schemas can be perfectly reconstructed with structural equivalence.
-        
+
         This validates the schema serialization/deserialization logic without incurring costs
         by testing the core schema recreation functionality directly.
         """
-        from pydantic import BaseModel, Field
         import json
-        
+
+        from pydantic import BaseModel, Field
+
         # Define complex schemas to test various field types
         class OriginalSimpleSchema(BaseModel):
             text: str
             count: int
-            
+
         class OriginalComplexSchema(BaseModel):
             name: str = Field(description="Entity name")
             score: float = Field(description="Confidence score", ge=0.0, le=1.0)
             tags: list[str] = Field(description="List of tags")
             metadata: dict[str, str] = Field(description="Additional metadata")
             is_valid: bool = Field(description="Validation status")
-        
+
         # Test the schema serialization directly (what happens during state serialization)
         original_schemas = {
             "simple": OriginalSimpleSchema,
-            "complex": OriginalComplexSchema
+            "complex": OriginalComplexSchema,
         }
-        
+
         # Serialize schemas to JSON (as done in serialize method)
         serialized_schemas = {}
         for name, schema_class in original_schemas.items():
             serialized_schemas[name] = schema_class.model_json_schema()
-        
-        # Test deserialization (as done in reconnect_from_state) 
+
+        # Test deserialization (as done in reconnect_from_state)
         from src.pyrtex.client import Job
-        
+
         # Create a job instance to access the private method
         temp_job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=OriginalSimpleSchema,
             prompt_template="test",
-            simulation_mode=True
+            simulation_mode=True,
         )
-        
+
         recreated_schemas = {}
         for name, schema_json in serialized_schemas.items():
             # Use the actual schema recreation logic from the Job class
-            recreated_schemas[name] = temp_job._create_pydantic_model_from_schema(schema_json)
-        
+            recreated_schemas[name] = temp_job._create_pydantic_model_from_schema(
+                schema_json
+            )
+
         # Test 1: Verify simple schema structural equivalence
         original_simple = original_schemas["simple"]
         recreated_simple = recreated_schemas["simple"]
-        
+
         original_simple_fields = set(original_simple.model_fields.keys())
         recreated_simple_fields = set(recreated_simple.model_fields.keys())
         assert original_simple_fields == recreated_simple_fields, (
             f"Simple schema fields mismatch: original={original_simple_fields}, "
             f"recreated={recreated_simple_fields}"
         )
-        
+
         # Test simple schema instantiation and field types
         simple_instance = recreated_simple(text="test", count=42)
         assert isinstance(simple_instance.text, str), "text field should be string"
         assert isinstance(simple_instance.count, int), "count field should be int"
         assert simple_instance.text == "test"
         assert simple_instance.count == 42
-        
-        # Test 2: Verify complex schema structural equivalence  
+
+        # Test 2: Verify complex schema structural equivalence
         original_complex = original_schemas["complex"]
         recreated_complex = recreated_schemas["complex"]
-        
+
         original_complex_fields = set(original_complex.model_fields.keys())
         recreated_complex_fields = set(recreated_complex.model_fields.keys())
         assert original_complex_fields == recreated_complex_fields, (
             f"Complex schema fields mismatch: original={original_complex_fields}, "
             f"recreated={recreated_complex_fields}"
         )
-        
+
         # Test complex schema instantiation and field types
         complex_instance = recreated_complex(
             name="test entity",
             score=0.75,
             tags=["tag1", "tag2"],
             metadata={"key": "value"},
-            is_valid=True
+            is_valid=True,
         )
         assert isinstance(complex_instance.name, str), "name field should be string"
         assert isinstance(complex_instance.score, float), "score field should be float"
         assert isinstance(complex_instance.tags, list), "tags field should be list"
-        assert isinstance(complex_instance.metadata, dict), "metadata field should be dict"
-        assert isinstance(complex_instance.is_valid, bool), "is_valid field should be bool"
-        
+        assert isinstance(
+            complex_instance.metadata, dict
+        ), "metadata field should be dict"
+        assert isinstance(
+            complex_instance.is_valid, bool
+        ), "is_valid field should be bool"
+
         # Test 3: Verify field constraints are preserved (e.g., Field descriptions, validators)
         complex_field_info = recreated_complex.model_fields
-        score_field = complex_field_info.get('score')
+        score_field = complex_field_info.get("score")
         assert score_field is not None, "score field should exist"
         # Note: While field constraints from Field() are preserved in the JSON schema,
         # the exact Field objects may differ. What matters is functional equivalence.
-        
+
         # Test 4: Verify JSON serialization compatibility
         try:
             simple_dict = simple_instance.model_dump()
             complex_dict = complex_instance.model_dump()
-            assert isinstance(simple_dict, dict), "Simple output should be serializable to dict"
-            assert isinstance(complex_dict, dict), "Complex output should be serializable to dict"
-            
+            assert isinstance(
+                simple_dict, dict
+            ), "Simple output should be serializable to dict"
+            assert isinstance(
+                complex_dict, dict
+            ), "Complex output should be serializable to dict"
+
             # Test round-trip JSON serialization
             simple_json = simple_instance.model_dump_json()
             complex_json = complex_instance.model_dump_json()
-            
+
             # Deserialize back
             simple_from_json = recreated_simple.model_validate_json(simple_json)
             complex_from_json = recreated_complex.model_validate_json(complex_json)
-            
+
             assert simple_from_json.text == "test"
             assert simple_from_json.count == 42
             assert complex_from_json.name == "test entity"
             assert complex_from_json.score == 0.75
-            
+
         except Exception as e:
             pytest.fail(f"JSON serialization failed, indicating structural issues: {e}")
-        
+
         # Test 5: Verify schema JSON representation is consistent
         original_simple_json = original_simple.model_json_schema()
         recreated_simple_json = recreated_simple.model_json_schema()
-        
+
         # The schemas should be functionally equivalent
-        assert original_simple_json["properties"] == recreated_simple_json["properties"], (
-            "Schema properties should be identical after serialization cycle"
-        )
-        assert original_simple_json["required"] == recreated_simple_json["required"], (
-            "Required fields should be identical after serialization cycle"  
-        )
-            
+        assert (
+            original_simple_json["properties"] == recreated_simple_json["properties"]
+        ), "Schema properties should be identical after serialization cycle"
+        assert (
+            original_simple_json["required"] == recreated_simple_json["required"]
+        ), "Required fields should be identical after serialization cycle"
+
         print(f"\n✅ Schema serialization reversibility test passed:")
-        print(f"   Simple schema: {original_simple_fields} -> {recreated_simple_fields}")
-        print(f"   Complex schema: {original_complex_fields} -> {recreated_complex_fields}")
+        print(
+            f"   Simple schema: {original_simple_fields} -> {recreated_simple_fields}"
+        )
+        print(
+            f"   Complex schema: {original_complex_fields} -> {recreated_complex_fields}"
+        )
         print(f"   Schema JSON properties and constraints preserved")
         print(f"   All field types and validation work correctly")
         print(f"   Serialization cycle maintains structural and functional equivalence")
