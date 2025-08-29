@@ -72,7 +72,7 @@ class Job(Generic[T]):
         self._validate_schema(self.output_schema)
 
         self._session_id: str = uuid.uuid4().hex[:10]
-        self._requests: List[tuple[Hashable, BaseModel, Optional[Type[BaseModel]]]] = []
+        self._requests: List[tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str]]] = []
         self._instance_map: Dict[str, tuple[Hashable, Type[BaseModel]]] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
 
@@ -313,6 +313,7 @@ class Job(Generic[T]):
         request_key: Hashable,
         data: BaseModel,
         output_schema: Optional[Type[BaseModel]] = None,
+        prompt_template: Optional[str] = None,
     ) -> "Job[T]":
         """
         Adds a single, structured request to the batch.
@@ -322,12 +323,14 @@ class Job(Generic[T]):
             data: A Pydantic model instance containing the input data for the prompt.
             output_schema: (Optional) A Pydantic model to use as the output schema
                 for this specific request, overriding the job's default schema.
+            prompt_template: (Optional) A string to use as the prompt template for this request,
+                overriding the job's default prompt template.
         """
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
 
         # Check for duplicate request keys
-        if any(key == request_key for key, _, _ in self._requests):
+        if any(key == request_key for key, _, _, _ in self._requests):
             msg = f"Request key '{request_key}' already exists. "
             msg += "Use a unique key for each request."
             raise ValueError(msg)
@@ -336,7 +339,7 @@ class Job(Generic[T]):
         if output_schema:
             self._validate_schema(output_schema)
 
-        self._requests.append((request_key, data, output_schema))
+        self._requests.append((request_key, data, output_schema, prompt_template))
         return self
 
     def _upload_file_to_gcs(
@@ -453,14 +456,11 @@ class Job(Generic[T]):
         jsonl_lines = []
         gcs_session_folder = f"batch-inputs/{self._session_id}"
 
-        for i, (request_key, data_model, override_schema) in enumerate(self._requests):
+        for i, (request_key, data_model, override_schema, override_prompt) in enumerate(self._requests):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
 
             # Determine which schema to use and store it for result parsing
             schema_to_use = override_schema or self.output_schema
-            # Store mapping for result parsing. We always store tuples in the
-            # new implementation. The results() method still tolerates legacy
-            # string-only entries for backwards compatibility.
             self._instance_map[instance_id] = (request_key, schema_to_use)
 
             parts = []
@@ -468,7 +468,7 @@ class Job(Generic[T]):
             data_dict = data_model.model_dump()
 
             for field_name, value in data_dict.items():
-                if isinstance(value, (bytes, Path)):  # If is file data
+                if isinstance(value, (bytes, Path)):
                     if isinstance(value, Path):
                         filename = value.name
                     else:
@@ -476,13 +476,13 @@ class Job(Generic[T]):
 
                     gcs_path = f"{gcs_session_folder}/{instance_id}/{filename}"
                     gcs_uri, mime_type = self._upload_file_to_gcs(value, gcs_path)
-                    parts.append(
-                        {"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}}
-                    )
+                    parts.append({"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}})
                 else:
                     template_context[field_name] = value
 
-            template = self._jinja_env.from_string(self.prompt_template)
+            # Use per-request prompt if provided, else job-level prompt
+            prompt_to_use = override_prompt or self.prompt_template
+            template = self._jinja_env.from_string(prompt_to_use)
             rendered_prompt = template.render(template_context)
             parts.append({"text": rendered_prompt})
 
@@ -515,6 +515,29 @@ class Job(Generic[T]):
             jsonl_lines.append(json.dumps(instance_payload))
 
         return "\n".join(jsonl_lines)
+    def _create_pydantic_model_from_schema(
+        self, schema: Dict[str, Any]
+    ) -> Type[BaseModel]:
+        """Dynamically creates a Pydantic model class from a JSON schema dictionary."""
+        from pydantic import create_model
+        model_name = schema.get("title", "DynamicModel")
+        fields = {}
+        for prop_name, prop_schema in schema.get("properties", {}).items():
+            field_type = Any
+            if prop_schema.get("type") == "integer":
+                field_type = int
+            elif prop_schema.get("type") == "number":
+                field_type = float
+            elif prop_schema.get("type") == "boolean":
+                field_type = bool
+            elif prop_schema.get("type") == "array":
+                field_type = List
+            elif prop_schema.get("type") == "object":
+                field_type = Dict
+            elif prop_schema.get("type") == "string":
+                field_type = str
+            fields[prop_name] = (field_type, ...)
+        return create_model(model_name, **fields)
 
     def submit(self, dry_run: bool = False) -> "Job[T]":
         """Constructs and submits the batch job."""
@@ -968,28 +991,21 @@ class Job(Generic[T]):
 
     def serialize(self) -> str:
         """
-        Serializes the job's state to a JSON string after submission.
-
+        Serializes the job's state to a JSON string, embedding schema definitions.
         This state contains all necessary information to reconnect to the
         job from another process to check its status and retrieve results.
-
         Raises:
             RuntimeError: If the job has not been submitted yet.
-
         Returns:
             A JSON string representing the job's state.
         """
         if not self._batch_job:
             raise RuntimeError("Cannot serialize a job that has not been submitted.")
 
-        # Pydantic schema types are not directly JSON serializable.
-        # We must convert them to a string representation (e.g., "module.ClassName").
         serializable_instance_map = {
             instance_id: (
-                # request_key should be a simple type for serialization
                 request_key,
-                # Convert schema type to "module.path.ClassName"
-                f"{schema.__module__}.{schema.__name__}",
+                self._get_flattened_schema(schema),  # Store schema dict
             )
             for instance_id, (request_key, schema) in self._instance_map.items()
         }
@@ -1005,56 +1021,34 @@ class Job(Generic[T]):
     @classmethod
     def reconnect_from_state(cls, state_json: str) -> "Job[T]":
         """
-        Reconnects to an existing Vertex AI job from a serialized state.
-
+        Reconnects to a job, dynamically recreating schemas from the state file.
         Args:
             state_json: The JSON string generated by the .serialize() method.
-
         Returns:
             A new Job instance linked to the existing cloud job.
         """
-        import importlib
-
         state_data = json.loads(state_json)
-
-        # Recreate the infrastructure config
         config = InfrastructureConfig(**state_data["infrastructure_config"])
 
-        # Create a "hollow" job instance. The initial model and schema are
-        # placeholders, as they aren't needed for fetching results.
         reconnected_job = cls(
             model="reconnected-job",
             output_schema=BaseModel,
             prompt_template="",
             config=config,
         )
-
-        # Re-initialize GCP clients with the loaded config
         reconnected_job._initialize_gcp()
-
-        # Link to the existing BatchPredictionJob on Vertex AI
         reconnected_job._batch_job = aiplatform.BatchPredictionJob(
             state_data["batch_job_resource_name"]
         )
         reconnected_job._session_id = state_data["session_id"]
 
-        # Reconstruct the instance map by dynamically importing schema types
+        # Recreate models from schema dicts instead of importing
         reconnected_job._instance_map = {}
-        for instance_id, (req_key, schema_str) in state_data["instance_map"].items():
-            try:
-                module_name, class_name = schema_str.rsplit(".", 1)
-                module = importlib.import_module(module_name)
-                schema_class = getattr(module, class_name)
-                reconnected_job._instance_map[instance_id] = (req_key, schema_class)
-            except (ImportError, AttributeError) as e:
-                msg = f"Failed to import schema '{schema_str}'. "
-                msg += "Ensure the schema definition is available in the"
-                msg += " Python environment."
-                raise RuntimeError(msg) from e
+        for instance_id, (req_key, schema_dict) in state_data["instance_map"].items():
+            schema_class = reconnected_job._create_pydantic_model_from_schema(schema_dict)
+            reconnected_job._instance_map[instance_id] = (req_key, schema_class)
 
-        # This reconnected job is not meant for adding new requests
         reconnected_job._requests = []
-
         return reconnected_job
 
     @property
