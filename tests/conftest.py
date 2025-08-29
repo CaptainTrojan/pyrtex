@@ -164,10 +164,7 @@ def sample_bigquery_results():
                         "content": {
                             "parts": [
                                 {
-                                    "functionCall": {
-                                        "name": "extract_info",
-                                        "args": {"result": "test_output"},
-                                    }
+                                    "text": '{"result": "test_output"}'
                                 }
                             ]
                         }

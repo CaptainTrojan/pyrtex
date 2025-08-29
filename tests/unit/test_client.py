@@ -735,10 +735,7 @@ class TestJobResults:
                         "content": {
                             "parts": [
                                 {
-                                    "functionCall": {
-                                        "name": "extract_info",
-                                        "args": {"result": "ignored"},
-                                    }
+                                    "text": '{"result": "ignored"}'
                                 }
                             ]
                         }
@@ -758,10 +755,7 @@ class TestJobResults:
                         "content": {
                             "parts": [
                                 {
-                                    "functionCall": {
-                                        "name": "extract_info",
-                                        "args": {"result": "ok"},
-                                    }
+                                    "text": '{"result": "ok"}'
                                 }
                             ]
                         }
@@ -1128,11 +1122,12 @@ class TestPayloadGeneration:
         assert gen_config["temperature"] == 0.0
         assert gen_config["max_output_tokens"] == 2048
 
-        # Check tools configuration
-        tools = first_line["request"]["tools"]
-        assert len(tools) == 1
-        assert tools[0]["function_declarations"][0]["name"] == "extract_info"
-        assert "parameters" in tools[0]["function_declarations"][0]
+        # Check response schema configuration (new JSON mode)
+        assert gen_config["response_mime_type"] == "application/json"
+        assert "response_schema" in gen_config
+        response_schema = gen_config["response_schema"]
+        assert response_schema["type"] == "object"
+        assert "properties" in response_schema
 
     def test_create_jsonl_payload_with_custom_generation_config(self, mock_gcp_clients):
         """Test payload generation with custom generation config."""
@@ -1559,10 +1554,7 @@ class TestJobEdgeCases:
                         "content": {
                             "parts": [
                                 {
-                                    "functionCall": {
-                                        "name": "extract_info",
-                                        "args": {"result": "test_output"},
-                                    }
+                                    "text": '{"result": "test_output"}'
                                 }
                             ]
                         }
@@ -1643,7 +1635,7 @@ class TestJobEdgeCases:
         # Set up instance map
         job._instance_map = {"req_00001_12345678": ("test1", SimpleOutput)}
 
-        # Mock BigQuery results with invalid data for schema
+        # Mock BigQuery results with invalid JSON in text field
         mock_row = Mock()
         mock_row.id = "req_00001_12345678"
         mock_row.status = None  # No error status
@@ -1654,12 +1646,7 @@ class TestJobEdgeCases:
                         "content": {
                             "parts": [
                                 {
-                                    "functionCall": {
-                                        "name": "extract_info",
-                                        "args": {
-                                            "invalid_field": "test_output"
-                                        },  # wrong field name
-                                    }
+                                    "text": '{"invalid_field": "test_output"}'  # wrong field name
                                 }
                             ]
                         }
@@ -1681,6 +1668,55 @@ class TestJobEdgeCases:
         assert results[0].request_key == "test1"
         assert results[0].output is None
         assert "Validation error" in results[0].error
+
+    def test_results_bigquery_parsing_missing_text_part(self, mock_gcp_clients):
+        """Test BigQuery result parsing when response lacks a 'text' part."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}",
+        )
+
+        job.add_request("test1", SimpleInput(word="hello"))
+        job.submit()
+
+        # Set up instance map
+        job._instance_map = {"req_00001_12345678": ("test1", SimpleOutput)}
+
+        # Mock BigQuery results with response that has no 'text' part
+        mock_row = Mock()
+        mock_row.id = "req_00001_12345678"
+        mock_row.status = None  # No error status
+        mock_row.response = json.dumps(
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "some_other_field": "not_text"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "usageMetadata": {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 5,
+                    "totalTokenCount": 15,
+                },
+            }
+        )
+
+        mock_gcp_clients["bigquery"].query.return_value.result.return_value = [mock_row]
+
+        results = list(job.results())
+
+        assert len(results) == 1
+        assert results[0].request_key == "test1"
+        assert results[0].output is None
+        assert "Failed to parse model output" in results[0].error
+        assert "Model response did not contain a 'text' part" in results[0].error
 
     def test_results_bigquery_query_error(self, mock_gcp_clients):
         """Test BigQuery result parsing when query fails."""
@@ -2018,10 +2054,7 @@ class TestResultsUnknownInstance:
                             "content": {
                                 "parts": [
                                     {
-                                        "functionCall": {
-                                            "name": "extract_info",
-                                            "args": {"result": "ignored"},
-                                        }
+                                        "text": '{"result": "ignored"}'
                                     }
                                 ]
                             }
@@ -2041,10 +2074,7 @@ class TestResultsUnknownInstance:
                             "content": {
                                 "parts": [
                                     {
-                                        "functionCall": {
-                                            "name": "extract_info",
-                                            "args": {"result": "ok"},
-                                        }
+                                        "text": '{"result": "ok"}'
                                     }
                                 ]
                             }

@@ -47,11 +47,12 @@ class TestPayloadGeneration:
         assert gen_config["temperature"] == 0.0
         assert gen_config["max_output_tokens"] == 2048
 
-        # Check tools configuration
-        tools = first_line["request"]["tools"]
-        assert len(tools) == 1
-        assert tools[0]["function_declarations"][0]["name"] == "extract_info"
-        assert "parameters" in tools[0]["function_declarations"][0]
+        # Check response schema configuration (new JSON mode)
+        assert gen_config["response_mime_type"] == "application/json"
+        assert "response_schema" in gen_config
+        response_schema = gen_config["response_schema"]
+        assert response_schema["type"] == "object"
+        assert "properties" in response_schema
 
     def test_create_jsonl_payload_with_custom_generation_config(self, mock_gcp_clients):
         """Test payload generation with custom generation config."""
@@ -279,19 +280,16 @@ class TestPayloadGeneration:
         payload = job._create_jsonl_payload()
 
         line = json.loads(payload.split("\n")[0])
-        function_decl = line["request"]["tools"][0]["function_declarations"][0]
-
-        assert function_decl["name"] == "extract_info"
-        assert (
-            function_decl["description"]
-            == "Extracts structured information based on the schema."
-        )
-
-        # Check that schema is properly included
-        parameters = function_decl["parameters"]
-        assert "properties" in parameters
-        assert "result" in parameters["properties"]
-        assert parameters["properties"]["result"]["type"] == "string"
+        gen_config = line["request"]["generation_config"]
+        
+        # Check response schema configuration (new JSON mode)
+        assert "response_schema" in gen_config
+        assert gen_config["response_mime_type"] == "application/json"
+        
+        response_schema = gen_config["response_schema"]
+        assert "properties" in response_schema
+        assert "result" in response_schema["properties"]
+        assert response_schema["properties"]["result"]["type"] == "string"
 
 
 class TestFileUpload:

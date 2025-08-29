@@ -61,7 +61,7 @@ class TestDryRun:
         assert "--- DRY RUN OUTPUT ---" in captured.out
         assert "Generated JSONL Payload" in captured.out
         assert '"text": "Process this word: hello"' in captured.out
-        assert "extract_info" in captured.out
+        assert "response_schema" in captured.out
         assert "Dry run enabled. Job was not submitted." in captured.err
 
     def test_dry_run_output_with_files(self, mock_gcp_clients, capsys):
@@ -821,10 +821,7 @@ class TestRealBigQueryResultParsing:
                                 "content": {
                                     "parts": [
                                         {
-                                            "functionCall": {
-                                                "name": "extract_info",
-                                                "args": {"result": "test_output_1"},
-                                            }
+                                            "text": '{"result": "test_output_1"}'
                                         }
                                     ]
                                 }
@@ -848,10 +845,7 @@ class TestRealBigQueryResultParsing:
                                 "content": {
                                     "parts": [
                                         {
-                                            "functionCall": {
-                                                "name": "extract_info",
-                                                "args": {"result": "test_output_2"},
-                                            }
+                                            "text": '{"result": "test_output_2"}'
                                         }
                                     ]
                                 }
@@ -1002,10 +996,7 @@ class TestRealBigQueryResultParsing:
                                 "content": {
                                     "parts": [
                                         {
-                                            "functionCall": {
-                                                "name": "extract_info",
-                                                "args": {"result": "beta"},
-                                            }
+                                            "text": '{"result": "beta"}'
                                         }
                                     ]
                                 }
@@ -1026,10 +1017,7 @@ class TestRealBigQueryResultParsing:
                                 "content": {
                                     "parts": [
                                         {
-                                            "functionCall": {
-                                                "name": "extract_info",
-                                                "args": {"result": "gamma"},
-                                            }
+                                            "text": '{"result": "gamma"}'
                                         }
                                     ]
                                 }
@@ -1050,10 +1038,7 @@ class TestRealBigQueryResultParsing:
                                 "content": {
                                     "parts": [
                                         {
-                                            "functionCall": {
-                                                "name": "extract_info",
-                                                "args": {"result": "alpha"},
-                                            }
+                                            "text": '{"result": "alpha"}'
                                         }
                                     ]
                                 }
