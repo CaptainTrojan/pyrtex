@@ -495,13 +495,15 @@ class Job(Generic[T]):
             # Build generation_config with responseSchema and response_mime_type
             request_gen_config = self.generation_config.model_dump(exclude_none=True)
             request_gen_config["response_mime_type"] = "application/json"
-            request_gen_config["response_schema"] = self._get_flattened_schema(schema_to_use)
+            request_gen_config["response_schema"] = self._get_flattened_schema(
+                schema_to_use
+            )
 
             instance_payload = {
                 "id": instance_id,
                 "request": {
                     "contents": [{"role": "user", "parts": parts}],
-                    "generation_config": request_gen_config
+                    "generation_config": request_gen_config,
                     # No 'tools' or 'tool_config' keys
                 },
             }

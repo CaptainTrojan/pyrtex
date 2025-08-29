@@ -819,11 +819,7 @@ class TestRealBigQueryResultParsing:
                         "candidates": [
                             {
                                 "content": {
-                                    "parts": [
-                                        {
-                                            "text": '{"result": "test_output_1"}'
-                                        }
-                                    ]
+                                    "parts": [{"text": '{"result": "test_output_1"}'}]
                                 }
                             }
                         ],
@@ -843,11 +839,7 @@ class TestRealBigQueryResultParsing:
                         "candidates": [
                             {
                                 "content": {
-                                    "parts": [
-                                        {
-                                            "text": '{"result": "test_output_2"}'
-                                        }
-                                    ]
+                                    "parts": [{"text": '{"result": "test_output_2"}'}]
                                 }
                             }
                         ],
@@ -992,15 +984,7 @@ class TestRealBigQueryResultParsing:
                 response=json.dumps(
                     {
                         "candidates": [
-                            {
-                                "content": {
-                                    "parts": [
-                                        {
-                                            "text": '{"result": "beta"}'
-                                        }
-                                    ]
-                                }
-                            }
+                            {"content": {"parts": [{"text": '{"result": "beta"}'}]}}
                         ],
                         "usageMetadata": {"totalTokenCount": 10},
                     }
@@ -1013,15 +997,7 @@ class TestRealBigQueryResultParsing:
                 response=json.dumps(
                     {
                         "candidates": [
-                            {
-                                "content": {
-                                    "parts": [
-                                        {
-                                            "text": '{"result": "gamma"}'
-                                        }
-                                    ]
-                                }
-                            }
+                            {"content": {"parts": [{"text": '{"result": "gamma"}'}]}}
                         ],
                         "usageMetadata": {"totalTokenCount": 12},
                     }
@@ -1034,15 +1010,7 @@ class TestRealBigQueryResultParsing:
                 response=json.dumps(
                     {
                         "candidates": [
-                            {
-                                "content": {
-                                    "parts": [
-                                        {
-                                            "text": '{"result": "alpha"}'
-                                        }
-                                    ]
-                                }
-                            }
+                            {"content": {"parts": [{"text": '{"result": "alpha"}'}]}}
                         ],
                         "usageMetadata": {"totalTokenCount": 8},
                     }

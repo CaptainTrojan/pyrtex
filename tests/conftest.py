@@ -160,15 +160,7 @@ def sample_bigquery_results():
             "id": "req_00001_abcd1234",
             "response": {
                 "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": '{"result": "test_output"}'
-                                }
-                            ]
-                        }
-                    }
+                    {"content": {"parts": [{"text": '{"result": "test_output"}'}]}}
                 ],
                 "usageMetadata": {
                     "promptTokenCount": 10,

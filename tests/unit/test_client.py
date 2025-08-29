@@ -731,15 +731,7 @@ class TestJobResults:
         unknown_row.response = json.dumps(
             {
                 "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": '{"result": "ignored"}'
-                                }
-                            ]
-                        }
-                    }
+                    {"content": {"parts": [{"text": '{"result": "ignored"}'}]}}
                 ],
                 "usageMetadata": {"totalTokenCount": 1},
             }
@@ -750,17 +742,7 @@ class TestJobResults:
         known_row.status = None
         known_row.response = json.dumps(
             {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": '{"result": "ok"}'
-                                }
-                            ]
-                        }
-                    }
-                ],
+                "candidates": [{"content": {"parts": [{"text": '{"result": "ok"}'}]}}],
                 "usageMetadata": {"totalTokenCount": 2},
             }
         )
@@ -1550,15 +1532,7 @@ class TestJobEdgeCases:
         mock_row.response = json.dumps(
             {
                 "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": '{"result": "test_output"}'
-                                }
-                            ]
-                        }
-                    }
+                    {"content": {"parts": [{"text": '{"result": "test_output"}'}]}}
                 ],
                 "usageMetadata": {
                     "promptTokenCount": 10,
@@ -1644,11 +1618,7 @@ class TestJobEdgeCases:
                 "candidates": [
                     {
                         "content": {
-                            "parts": [
-                                {
-                                    "text": '{"invalid_field": "test_output"}'  # wrong field name
-                                }
-                            ]
+                            "parts": [{"text": '{"invalid_field": "test_output"}'}]
                         }
                     }
                 ],
@@ -1690,15 +1660,7 @@ class TestJobEdgeCases:
         mock_row.response = json.dumps(
             {
                 "candidates": [
-                    {
-                        "content": {
-                            "parts": [
-                                {
-                                    "some_other_field": "not_text"
-                                }
-                            ]
-                        }
-                    }
+                    {"content": {"parts": [{"some_other_field": "not_text"}]}}
                 ],
                 "usageMetadata": {
                     "promptTokenCount": 10,
@@ -2050,15 +2012,7 @@ class TestResultsUnknownInstance:
             response=json.dumps(
                 {
                     "candidates": [
-                        {
-                            "content": {
-                                "parts": [
-                                    {
-                                        "text": '{"result": "ignored"}'
-                                    }
-                                ]
-                            }
-                        }
+                        {"content": {"parts": [{"text": '{"result": "ignored"}'}]}}
                     ],
                     "usageMetadata": {"totalTokenCount": 1},
                 }
@@ -2070,15 +2024,7 @@ class TestResultsUnknownInstance:
             response=json.dumps(
                 {
                     "candidates": [
-                        {
-                            "content": {
-                                "parts": [
-                                    {
-                                        "text": '{"result": "ok"}'
-                                    }
-                                ]
-                            }
-                        }
+                        {"content": {"parts": [{"text": '{"result": "ok"}'}]}}
                     ],
                     "usageMetadata": {"totalTokenCount": 2},
                 }

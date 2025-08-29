@@ -281,11 +281,11 @@ class TestPayloadGeneration:
 
         line = json.loads(payload.split("\n")[0])
         gen_config = line["request"]["generation_config"]
-        
+
         # Check response schema configuration (new JSON mode)
         assert "response_schema" in gen_config
         assert gen_config["response_mime_type"] == "application/json"
-        
+
         response_schema = gen_config["response_schema"]
         assert "properties" in response_schema
         assert "result" in response_schema["properties"]

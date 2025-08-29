@@ -139,15 +139,7 @@ class TestBigQueryResultParsing:
         mock_row.status = None  # No error status
         mock_row.response = {  # This is a dict, not a JSON string
             "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {
-                                "text": '{"result": "test_output"}'
-                            }
-                        ]
-                    }
-                }
+                {"content": {"parts": [{"text": '{"result": "test_output"}'}]}}
             ],
             "usageMetadata": {
                 "promptTokenCount": 10,
