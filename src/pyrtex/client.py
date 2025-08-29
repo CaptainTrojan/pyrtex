@@ -798,7 +798,7 @@ class Job(Generic[T]):
 
     def _generate_dummy_results(self) -> Iterator[BatchResult[Any]]:
         """Generates dummy results for simulation mode."""
-        for request_key, _, override_schema in self._requests:
+        for request_key, _, override_schema, _ in self._requests:
             schema_to_mock = override_schema or self.output_schema
             dummy_output = self._create_dummy_output(schema_to_mock)
 
