@@ -492,30 +492,17 @@ class Job(Generic[T]):
             rendered_prompt = template.render(template_context)
             parts.append({"text": rendered_prompt})
 
+            # Build generation_config with responseSchema and response_mime_type
+            request_gen_config = self.generation_config.model_dump(exclude_none=True)
+            request_gen_config["response_mime_type"] = "application/json"
+            request_gen_config["response_schema"] = self._get_flattened_schema(schema_to_use)
+
             instance_payload = {
                 "id": instance_id,
                 "request": {
                     "contents": [{"role": "user", "parts": parts}],
-                    "generation_config": self.generation_config.model_dump(
-                        exclude_none=True
-                    ),
-                    "tools": [
-                        {
-                            "function_declarations": [
-                                {
-                                    "name": "extract_info",
-                                    "description": (
-                                        "Extracts structured information "
-                                        "based on the schema."
-                                    ),
-                                    "parameters": (
-                                        self._get_flattened_schema(schema_to_use)
-                                    ),
-                                }
-                            ]
-                        }
-                    ],
-                    "tool_config": {"function_calling_config": {"mode": "any"}},
+                    "generation_config": request_gen_config
+                    # No 'tools' or 'tool_config' keys
                 },
             }
             jsonl_lines.append(json.dumps(instance_payload))
@@ -773,15 +760,19 @@ class Job(Generic[T]):
                 result_args["usage_metadata"] = processed_usage_metadata
 
                 try:
+                    # In JSON mode, the output is in the 'text' of the first part
                     part = response_dict["candidates"][0]["content"]["parts"][0]
-                    if "functionCall" not in part:
-                        raise KeyError("Model did not return a function call.")
+                    if "text" not in part:
+                        raise KeyError("Model response did not contain a 'text' part.")
 
-                    args = part["functionCall"]["args"]
-                    parsed_output = schema_used.model_validate(args)
+                    # The text part contains the JSON string, so we need to parse it
+                    json_output = json.loads(part["text"])
+
+                    # Now validate the parsed JSON against the Pydantic schema
+                    parsed_output = schema_used.model_validate(json_output)
                     result_args["output"] = parsed_output
 
-                except (KeyError, IndexError, TypeError) as e:
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError) as e:
                     if "error" in response_dict:
                         error_info = response_dict["error"]
                         if isinstance(error_info, dict):
