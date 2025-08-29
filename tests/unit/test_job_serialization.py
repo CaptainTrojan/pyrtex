@@ -47,17 +47,15 @@ def test_serialize_happy_path(mock_gcp_clients):
     assert state["session_id"] == job._session_id
     assert "infrastructure_config" in state
     assert isinstance(state["instance_map"], dict)
-    # Validate each mapping is a two-element sequence [request_key, fq_schema]
+    # Validate each mapping is a two-element sequence [request_key, schema_dict]
     for item in state["instance_map"].values():
         assert isinstance(item, (list, tuple)) and len(item) == 2
-        assert (
-            item[1].endswith((".AltOutput", ".SimpleOutput"))
-            or item[1].endswith("AltOutput")
-            or item[1].endswith("SimpleOutput")
-        )
-    # Ensure both schemas present
-    schema_names = {v[1].split(".")[-1] for v in state["instance_map"].values()}
-    assert {"SimpleOutput", "AltOutput"}.issubset(schema_names)
+        assert isinstance(item[1], dict)  # Schema is now a dictionary
+        assert "type" in item[1]  # Should contain JSON schema properties
+        assert "properties" in item[1]
+    # Ensure both schemas present by checking their titles
+    schema_titles = {v[1].get("title", "Unknown") for v in state["instance_map"].values()}
+    assert {"SimpleOutput", "AltOutput"}.issubset(schema_titles)
 
 
 def test_reconnect_from_state_restores_job(mock_gcp_clients):
@@ -103,15 +101,23 @@ def test_reconnect_from_state_restores_job(mock_gcp_clients):
         re_job.add_request("new", SimpleInput(word="x"))
 
 
-def test_reconnect_from_state_import_error(mocker):
-    # Build minimal fake state referencing a non-existent schema
+def test_reconnect_from_state_with_valid_schema_dict(mocker):
+    # Build minimal fake state with a valid schema dictionary
+    fake_schema = {
+        "type": "object",
+        "title": "TestSchema",
+        "properties": {
+            "test_field": {"type": "string"}
+        },
+        "required": ["test_field"]
+    }
     fake_state = {
         "batch_job_resource_name": "projects/x/locations/y/batchPredictionJobs/123",
         "session_id": "abc123",
         "infrastructure_config": InfrastructureConfig(
             project_id="p", location="us-central1"
         ).model_dump(mode="json"),
-        "instance_map": {"req_00000_deadbeef": ("key", "nonexistent.module.Schema")},
+        "instance_map": {"req_00000_deadbeef": ("key", fake_schema)},
     }
     state_json = json.dumps(fake_state)
 
@@ -119,10 +125,10 @@ def test_reconnect_from_state_import_error(mocker):
     mocker.patch.object(Job, "_initialize_gcp")
     mocker.patch("google.cloud.aiplatform.BatchPredictionJob", return_value=Mock())
 
-    with pytest.raises(
-        RuntimeError, match="Failed to import schema"
-    ):  # import error propagated
-        Job.reconnect_from_state(state_json)
+    # Should succeed now that we create models from schema dicts
+    reconnected_job = Job.reconnect_from_state(state_json)
+    assert reconnected_job._session_id == "abc123"
+    assert len(reconnected_job._instance_map) == 1
 
 
 def test_status_property(mock_gcp_clients):
