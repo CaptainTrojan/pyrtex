@@ -389,7 +389,9 @@ class TestRealWorldScenarios:
         job.add_request(
             "custom_prompt_only",
             GenericInput(text="innovation"),
-            prompt_template="Take '{{ text }}' and return it with '-tech' suffix in result field.",
+            prompt_template=(
+                "Take '{{ text }}' and return it with '-tech' suffix in result field."
+            ),
         )
 
         # Request 3: Default prompt + custom schema
@@ -404,7 +406,10 @@ class TestRealWorldScenarios:
             "custom_both",
             GenericInput(text="Jane Smith works as Senior Engineer at TechCorp"),
             output_schema=PersonInfo,
-            prompt_template="Extract person name and role from: '{{ text }}'. Return as name and role fields.",
+            prompt_template=(
+                "Extract person name and role from: '{{ text }}'. "
+                "Return as name and role fields."
+            ),
         )
 
         results = list(job.submit().wait().results())
@@ -450,7 +455,8 @@ class TestRealWorldScenarios:
             schema_name = type(r.output).__name__ if r.output else "<no output>"
             result_preview = str(r.output)[:50] + "..." if r.output else "N/A"
             print(
-                f" - {key}: success={r.was_successful} schema={schema_name} result={result_preview} error={r.error}"
+                f" - {key}: success={r.was_successful} "
+                f"schema={schema_name} result={result_preview} error={r.error}"
             )
 
     @pytest.mark.incurs_costs
@@ -492,14 +498,18 @@ class TestRealWorldScenarios:
             "dynamic_schema",
             TaskInput(content="Extract key information and provide confidence score"),
             output_schema=DynamicSchema,
-            prompt_template="Extract key info from '{{ content }}' and rate confidence 0-1. Return as extracted_data and confidence fields.",
+            prompt_template=(
+                "Extract key info from '{{ content }}' and rate confidence 0-1. "
+                "Return as extracted_data and confidence fields."
+            ),
         )
 
         # Process A: Submit and serialize immediately (no wait)
         job.submit()
         state_json = job.serialize()
 
-        # Process B: Reconnect from serialized state (simulates different process/environment)
+        # Process B: Reconnect from serialized state (simulates different
+        # process/environment)
         reconnected_job = Job.reconnect_from_state(state_json)
 
         # Wait for completion with timeout
@@ -531,7 +541,8 @@ class TestRealWorldScenarios:
         dynamic_result = by_key["dynamic_schema"]
 
         if default_result.output:
-            # The recreated schema won't be the exact same class, but should have the same structure
+            # The recreated schema won't be the exact same class, but should have
+            # the same structure
             assert hasattr(
                 default_result.output, "result"
             ), "Default schema should have 'result' field"
@@ -547,7 +558,8 @@ class TestRealWorldScenarios:
             assert hasattr(
                 dynamic_result.output, "confidence"
             ), "Dynamic schema should have 'confidence' field"
-            # Type name might be different (DynamicModel vs DynamicSchema) but fields should work
+            # Type name might be different (DynamicModel vs DynamicSchema) but
+            # fields should work
 
         # Log results
         print("\n🔎 Dynamic schema serialization test results:")
@@ -555,7 +567,8 @@ class TestRealWorldScenarios:
             r = by_key[key]
             schema_name = type(r.output).__name__ if r.output else "<no output>"
             print(
-                f" - {key}: success={r.was_successful} schema={schema_name} error={r.error}"
+                f" - {key}: success={r.was_successful} "
+                f"schema={schema_name} error={r.error}"
             )
             if r.output and hasattr(r.output, "__dict__"):
                 print(f"   Fields: {list(r.output.__dict__.keys())}")
@@ -565,10 +578,12 @@ class TestSchemaSerializationReversibility:
     """Test that schema serialization/deserialization is perfectly reversible."""
 
     def test_schema_serialization_structural_equivalence(self, mock_gcp_clients):
-        """Test that serialized schemas can be perfectly reconstructed with structural equivalence.
+        """Test that serialized schemas can be perfectly reconstructed with
+        structural equivalence.
 
-        This validates the schema serialization/deserialization logic without incurring costs
-        by testing the core schema recreation functionality directly.
+        This validates the schema serialization/deserialization logic without
+        incurring costs by testing the core schema recreation functionality
+        directly.
         """
         import json
 
@@ -586,7 +601,8 @@ class TestSchemaSerializationReversibility:
             metadata: dict[str, str] = Field(description="Additional metadata")
             is_valid: bool = Field(description="Validation status")
 
-        # Test the schema serialization directly (what happens during state serialization)
+        # Test the schema serialization directly (what happens during state
+        # serialization)
         original_schemas = {
             "simple": OriginalSimpleSchema,
             "complex": OriginalComplexSchema,
@@ -662,7 +678,8 @@ class TestSchemaSerializationReversibility:
             complex_instance.is_valid, bool
         ), "is_valid field should be bool"
 
-        # Test 3: Verify field constraints are preserved (e.g., Field descriptions, validators)
+        # Test 3: Verify field constraints are preserved (e.g., Field descriptions,
+        # validators)
         complex_field_info = recreated_complex.model_fields
         score_field = complex_field_info.get("score")
         assert score_field is not None, "score field should exist"
@@ -708,16 +725,18 @@ class TestSchemaSerializationReversibility:
             original_simple_json["required"] == recreated_simple_json["required"]
         ), "Required fields should be identical after serialization cycle"
 
-        print(f"\n✅ Schema serialization reversibility test passed:")
+        print("\n✅ Schema serialization reversibility test passed:")
         print(
-            f"   Simple schema: {original_simple_fields} -> {recreated_simple_fields}"
+            f"   Simple schema: {original_simple_fields} -> "
+            f"{recreated_simple_fields}"
         )
         print(
-            f"   Complex schema: {original_complex_fields} -> {recreated_complex_fields}"
+            f"   Complex schema: {original_complex_fields} -> "
+            f"{recreated_complex_fields}"
         )
-        print(f"   Schema JSON properties and constraints preserved")
-        print(f"   All field types and validation work correctly")
-        print(f"   Serialization cycle maintains structural and functional equivalence")
+        print("   Schema JSON properties and constraints preserved")
+        print("   All field types and validation work correctly")
+        print("   Serialization cycle maintains structural and functional equivalence")
 
 
 class TestErrorScenarios:

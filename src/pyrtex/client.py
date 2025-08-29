@@ -325,8 +325,8 @@ class Job(Generic[T]):
             data: A Pydantic model instance containing the input data for the prompt.
             output_schema: (Optional) A Pydantic model to use as the output schema
                 for this specific request, overriding the job's default schema.
-            prompt_template: (Optional) A string to use as the prompt template for this request,
-                overriding the job's default prompt template.
+            prompt_template: (Optional) A string to use as the prompt template for
+                this request, overriding the job's default prompt template.
         """
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
