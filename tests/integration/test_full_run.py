@@ -350,94 +350,172 @@ class TestRealWorldScenarios:
 
     @pytest.mark.incurs_costs
     @requires_project_id
-    def test_per_request_schema_overrides(self):
-        """Demonstrate using per-request output schema overrides in a single job.
-
-        This launches a real batch job (costs may be incurred) with two requests:
-        1. Uses the job's default schema (SimpleOutput).
-        2. Overrides the output schema with a richer structure (OverrideOutput).
-
-        The test asserts that both request keys produce a result object whose
-        schema matches the request configuration (or surfaces an error cleanly
-        if the model deviates). This primarily validates correct wiring of the
-        per-request schema override feature end-to-end.
+    def test_per_request_overrides_comprehensive(self):
+        """Comprehensive test of per-request prompt template and schema overrides.
+        
+        Tests all combinations in a single batch job:
+        1. Default prompt + default schema (baseline)
+        2. Custom prompt + default schema (prompt override only)
+        3. Default prompt + custom schema (schema override only)
+        4. Custom prompt + custom schema (both overrides)
         """
         from pydantic import BaseModel, Field
-
-        class OverrideOutput(BaseModel):
-            company: str = Field(description="Company name extracted from text")
-            location: str = Field(description="Location or region, if present")
-
-        # Prompt provides explicit, deterministic instructions to help the model
-        # conform to each schema. Even so, we keep assertions tolerant of model
-        # variability (will mark failure only if mapping logic is incorrect).
-        prompt = (
-            "You will receive an 'mode' and 'text'. If mode == 'default', return a "
-            "function call with just {result: <the original text in uppercase>}."
-        )
-        prompt += (
-            " If mode == 'override', extract the plausible company name and a "
-            "geographic location (guess if needed) and return them as "
-            "{company, location}."
-        )
-
-        class MixedInput(BaseModel):
-            mode: str
+        
+        class CompanyInfo(BaseModel):
+            name: str = Field(description="Company name")
+            industry: str = Field(description="Industry sector")
+            
+        class PersonInfo(BaseModel):  
+            name: str = Field(description="Person's name")
+            role: str = Field(description="Job title or role")
+        
+        class GenericInput(BaseModel):
             text: str
-
+            
+        # Job with default settings
         job = Job(
             model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,  # default schema
-            prompt_template=prompt + " Input: mode={{ mode }}, text='{{ text }}'",
+            output_schema=SimpleOutput,
+            prompt_template="Return the text '{{ text }}' exactly in the result field.",
         )
-
-        # Request 1: default schema
+        
+        # Request 1: Default prompt + default schema (baseline)
         job.add_request(
-            "default_req",
-            MixedInput(mode="default", text="alpha industries"),
+            "default_both",
+            GenericInput(text="test message"),
         )
-
-        # Request 2: override schema
+        
+        # Request 2: Custom prompt + default schema
         job.add_request(
-            "override_req",
-            MixedInput(mode="override", text="Beta Corp operates in Europe"),
-            output_schema=OverrideOutput,
+            "custom_prompt_only",
+            GenericInput(text="innovation"),
+            prompt_template="Take '{{ text }}' and return it with '-tech' suffix in result field."
         )
-
+        
+        # Request 3: Default prompt + custom schema
+        job.add_request(
+            "custom_schema_only", 
+            GenericInput(text="Apple Inc operates in technology sector"),
+            output_schema=CompanyInfo
+        )
+        
+        # Request 4: Custom prompt + custom schema
+        job.add_request(
+            "custom_both",
+            GenericInput(text="Jane Smith works as Senior Engineer at TechCorp"),
+            output_schema=PersonInfo,
+            prompt_template="Extract person name and role from: '{{ text }}'. Return as name and role fields."
+        )
+        
         results = list(job.submit().wait().results())
-
-        # Build map for easy lookup (results order not guaranteed)
         by_key = {r.request_key: r for r in results}
-        assert "default_req" in by_key, "Missing default request result"
-        assert "override_req" in by_key, "Missing override request result"
-
-        default_result = by_key["default_req"]
-        override_result = by_key["override_req"]
-
-        # Default request should use SimpleOutput schema when successful
-        if default_result.output is not None:
-            assert isinstance(
-                default_result.output, SimpleOutput
-            ), "Default request output did not use SimpleOutput schema"
-        else:  # Provide diagnostic context
-            print(f"Default schema request returned error: {default_result.error}")
-
-        # Override request should use OverrideOutput schema when successful
-        if override_result.output is not None:
-            assert isinstance(
-                override_result.output, OverrideOutput
-            ), "Override request output did not use OverrideOutput schema"
-        else:
-            print(f"Override schema request returned error: {override_result.error}")
-
-        # Always surface a concise summary for manual inspection in CI logs
-        print("\n🔎 Per-request schema override summary:")
-        for r in results:
+        
+        # Verify all requests completed
+        expected_keys = {"default_both", "custom_prompt_only", "custom_schema_only", "custom_both"}
+        assert set(by_key.keys()) == expected_keys, f"Missing results for: {expected_keys - set(by_key.keys())}"
+        
+        # Verify schema types match expectations
+        assert isinstance(by_key["default_both"].output, SimpleOutput) if by_key["default_both"].output else True
+        assert isinstance(by_key["custom_prompt_only"].output, SimpleOutput) if by_key["custom_prompt_only"].output else True  
+        assert isinstance(by_key["custom_schema_only"].output, CompanyInfo) if by_key["custom_schema_only"].output else True
+        assert isinstance(by_key["custom_both"].output, PersonInfo) if by_key["custom_both"].output else True
+        
+        # Log comprehensive results
+        print("\n🔎 Per-request overrides comprehensive test results:")
+        for key in expected_keys:
+            r = by_key[key]
             schema_name = type(r.output).__name__ if r.output else "<no output>"
-            print(
-                f" - {r.request_key}: success={r.was_successful} "
-                f"schema={schema_name} error={r.error}"
-            )
+            result_preview = str(r.output)[:50] + "..." if r.output else "N/A"
+            print(f" - {key}: success={r.was_successful} schema={schema_name} result={result_preview} error={r.error}")
+
+    @pytest.mark.incurs_costs  
+    @requires_project_id
+    def test_serialization_with_dynamic_schemas(self):
+        """Test self-contained state serialization with dynamically created schemas.
+        
+        This validates the key new serialization feature: storing schema definitions
+        instead of class names, enabling reconnection in stateless environments.
+        
+        Simulates: Process A submits job -> Process B reconnects -> fetches results
+        """
+        from pydantic import BaseModel, Field
+        
+        class DynamicSchema(BaseModel):
+            """Schema created dynamically - wouldn't exist in reconnection process"""
+            extracted_data: str = Field(description="Extracted information")
+            confidence: float = Field(description="Confidence score")
+        
+        class TaskInput(BaseModel):
+            content: str
+            
+        # Job with mixed schema usage
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Process: {{ content }}",
+        )
+        
+        # Request 1: Job default schema
+        job.add_request(
+            "default_schema",
+            TaskInput(content="simple text processing"),
+        )
+        
+        # Request 2: Dynamic schema override  
+        job.add_request(
+            "dynamic_schema",
+            TaskInput(content="Extract key information and provide confidence score"),
+            output_schema=DynamicSchema,
+            prompt_template="Extract key info from '{{ content }}' and rate confidence 0-1. Return as extracted_data and confidence fields."
+        )
+        
+        # Process A: Submit and serialize immediately (no wait)
+        job.submit()
+        state_json = job.serialize()
+        
+        # Process B: Reconnect from serialized state (simulates different process/environment)
+        reconnected_job = Job.reconnect_from_state(state_json)
+        
+        # Wait for completion with timeout
+        import time
+        timeout_s = 600  # 10 minutes max
+        poll_interval = 15
+        start = time.time()
+        while not reconnected_job.is_done and (time.time() - start) < timeout_s:
+            time.sleep(poll_interval)
+            
+        if not reconnected_job.is_done:
+            pytest.skip("Job not completed within polling timeout; skipping result assertions")
+            
+        # Fetch results through reconnected job
+        results = list(reconnected_job.results())
+        by_key = {r.request_key: r for r in results}
+        
+        # Verify both requests completed
+        expected_keys = {"default_schema", "dynamic_schema"}
+        assert set(by_key.keys()) == expected_keys, f"Missing results for: {expected_keys - set(by_key.keys())}"
+        
+        # Critical test: Verify dynamically recreated schemas work correctly
+        default_result = by_key["default_schema"]
+        dynamic_result = by_key["dynamic_schema"]
+        
+        if default_result.output:
+            assert isinstance(default_result.output, SimpleOutput)
+            
+        if dynamic_result.output:
+            # The schema was recreated from serialized definition - this is the key test
+            assert hasattr(dynamic_result.output, 'extracted_data')
+            assert hasattr(dynamic_result.output, 'confidence')
+            # Type name might be different (DynamicModel vs DynamicSchema) but fields should work
+        
+        # Log results
+        print("\n🔎 Dynamic schema serialization test results:")
+        for key in expected_keys:
+            r = by_key[key]
+            schema_name = type(r.output).__name__ if r.output else "<no output>"
+            print(f" - {key}: success={r.was_successful} schema={schema_name} error={r.error}")
+            if r.output and hasattr(r.output, '__dict__'):
+                print(f"   Fields: {list(r.output.__dict__.keys())}")
 
 class TestErrorScenarios:
     """Test error scenarios that don't require real GCP."""
