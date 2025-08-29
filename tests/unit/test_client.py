@@ -2122,3 +2122,54 @@ class TestSchemaValidationDictKey:
             ValueError, match="Dictionary keys in 'mapping' must be of type str"
         ):
             job._validate_schema(BadDictModel)
+
+
+class TestPydanticModelFromSchema:
+    def test_create_pydantic_model_from_schema_all_types(self, mock_gcp_clients):
+        """Test _create_pydantic_model_from_schema with all supported data types."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+        
+        # Schema with all different types to cover all branches
+        test_schema = {
+            "title": "TestModel",
+            "type": "object",
+            "properties": {
+                "integer_field": {"type": "integer"},
+                "number_field": {"type": "number"},
+                "boolean_field": {"type": "boolean"},
+                "array_field": {"type": "array"},
+                "object_field": {"type": "object"},
+                "string_field": {"type": "string"},
+                "unknown_field": {"type": "unknown"}  # Should default to Any
+            }
+        }
+        
+        # Call the method to test all type branches
+        model_class = job._create_pydantic_model_from_schema(test_schema)
+        
+        # Verify the model was created correctly
+        assert model_class.__name__ == "TestModel"
+        
+        # Create an instance to verify field types work
+        instance = model_class(
+            integer_field=42,
+            number_field=3.14,
+            boolean_field=True,
+            array_field=["test"],
+            object_field={"key": "value"},
+            string_field="test",
+            unknown_field="anything"
+        )
+        
+        assert instance.integer_field == 42
+        assert instance.number_field == 3.14
+        assert instance.boolean_field is True
+        assert instance.array_field == ["test"]
+        assert instance.object_field == {"key": "value"}
+        assert instance.string_field == "test"
+        assert instance.unknown_field == "anything"
