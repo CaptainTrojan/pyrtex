@@ -1014,6 +1014,7 @@ class Job(Generic[T]):
         state = {
             "batch_job_resource_name": self._batch_job.resource_name,
             "session_id": self._session_id,
+            "model": self.model,
             "infrastructure_config": self.config.model_dump(mode="json"),
             "instance_map": serializable_instance_map,
         }
@@ -1032,7 +1033,7 @@ class Job(Generic[T]):
         config = InfrastructureConfig(**state_data["infrastructure_config"])
 
         reconnected_job = cls(
-            model="reconnected-job",
+            model=state_data["model"],
             output_schema=BaseModel,
             prompt_template="",
             config=config,

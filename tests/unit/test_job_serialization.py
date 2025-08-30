@@ -114,6 +114,7 @@ def test_reconnect_from_state_with_valid_schema_dict(mocker):
     fake_state = {
         "batch_job_resource_name": "projects/x/locations/y/batchPredictionJobs/123",
         "session_id": "abc123",
+        "model": "gemini-2.0-flash-lite-001",
         "infrastructure_config": InfrastructureConfig(
             project_id="p", location="us-central1"
         ).model_dump(mode="json"),
