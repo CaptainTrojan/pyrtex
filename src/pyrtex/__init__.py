@@ -14,7 +14,7 @@ from .config import GenerationConfig, InfrastructureConfig
 from .exceptions import ConfigurationError, JobFailedError
 from .models import BatchResult, T
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 __all__ = [
     "Job",
     "InfrastructureConfig",
