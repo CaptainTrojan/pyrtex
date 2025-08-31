@@ -40,13 +40,16 @@ class Job(Generic[T]):
         # Type checkers will know that results are of type BatchResult[ContactInfo]
         # (Note: the return type hint is now BatchResult[Any] for flexibility)
 
-    Example (Multiple Schemas):
-        # Set a default schema for the job
+    Example (Multiple Schemas and Configs):
+        # Set defaults for the job
         job = Job[ContactInfo](model="...", output_schema=ContactInfo, ...)
-        # Use the default schema for this request
+        # Use the default schema and config for this request
         job.add_request("req1", MyInput(content="..."))
         # Override the schema for another request
         job.add_request("req2", MyInput(content="..."), output_schema=CompanyInfo)
+        # Override the generation config for another request
+        custom_config = GenerationConfig(temperature=0.9, max_output_tokens=1000)
+        job.add_request("req3", MyInput(content="..."), generation_config=custom_config)
 
     Warning: This class is not thread-safe. Do not share Job instances
     across multiple threads without proper synchronization.
@@ -73,7 +76,7 @@ class Job(Generic[T]):
 
         self._session_id: str = uuid.uuid4().hex[:10]
         self._requests: List[
-            tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str]]
+            tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str], Optional[GenerationConfig]]
         ] = []
         self._instance_map: Dict[str, tuple[Hashable, Type[BaseModel]]] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
@@ -316,6 +319,7 @@ class Job(Generic[T]):
         data: BaseModel,
         output_schema: Optional[Type[BaseModel]] = None,
         prompt_template: Optional[str] = None,
+        generation_config: Optional[GenerationConfig] = None,
     ) -> "Job[T]":
         """
         Adds a single, structured request to the batch.
@@ -327,12 +331,14 @@ class Job(Generic[T]):
                 for this specific request, overriding the job's default schema.
             prompt_template: (Optional) A string to use as the prompt template for
                 this request, overriding the job's default prompt template.
+            generation_config: (Optional) A GenerationConfig to use for this specific
+                request, overriding the job's default generation config.
         """
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
 
         # Check for duplicate request keys
-        if any(key == request_key for key, _, _, _ in self._requests):
+        if any(key == request_key for key, _, _, _, _ in self._requests):
             msg = f"Request key '{request_key}' already exists. "
             msg += "Use a unique key for each request."
             raise ValueError(msg)
@@ -341,7 +347,7 @@ class Job(Generic[T]):
         if output_schema:
             self._validate_schema(output_schema)
 
-        self._requests.append((request_key, data, output_schema, prompt_template))
+        self._requests.append((request_key, data, output_schema, prompt_template, generation_config))
         return self
 
     def _upload_file_to_gcs(
@@ -458,7 +464,7 @@ class Job(Generic[T]):
         jsonl_lines = []
         gcs_session_folder = f"batch-inputs/{self._session_id}"
 
-        for i, (request_key, data_model, override_schema, override_prompt) in enumerate(
+        for i, (request_key, data_model, override_schema, override_prompt, override_generation_config) in enumerate(
             self._requests
         ):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
@@ -492,8 +498,9 @@ class Job(Generic[T]):
             rendered_prompt = template.render(template_context)
             parts.append({"text": rendered_prompt})
 
-            # Build generation_config with responseSchema and response_mime_type
-            request_gen_config = self.generation_config.model_dump(exclude_none=True)
+            # Use per-request generation config if provided, else job-level config
+            generation_config_to_use = override_generation_config or self.generation_config
+            request_gen_config = generation_config_to_use.model_dump(exclude_none=True)
             request_gen_config["response_mime_type"] = "application/json"
             request_gen_config["response_schema"] = self._get_flattened_schema(
                 schema_to_use
@@ -798,7 +805,7 @@ class Job(Generic[T]):
 
     def _generate_dummy_results(self) -> Iterator[BatchResult[Any]]:
         """Generates dummy results for simulation mode."""
-        for request_key, _, override_schema, _ in self._requests:
+        for request_key, _, override_schema, _, _ in self._requests:
             schema_to_mock = override_schema or self.output_schema
             dummy_output = self._create_dummy_output(schema_to_mock)
 
@@ -810,6 +817,7 @@ class Job(Generic[T]):
             usage_metadata = {
                 "promptTokenCount": 0,
                 "candidatesTokenCount": 0,
+                "thoughtsTokenCount": 0,
                 "totalTokenCount": 0,
             }
 
