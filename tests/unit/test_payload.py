@@ -45,7 +45,6 @@ class TestPayloadGeneration:
         # Check generation config
         gen_config = first_line["request"]["generation_config"]
         assert gen_config["temperature"] == 0.0
-        assert gen_config["max_output_tokens"] == 2048
 
         # Check response schema configuration (new JSON mode)
         assert gen_config["response_mime_type"] == "application/json"

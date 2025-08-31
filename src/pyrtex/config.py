@@ -99,6 +99,13 @@ class InfrastructureConfig(BaseSettings):
         except (json.JSONDecodeError, FileNotFoundError, KeyError):
             return False
 
+class ThinkingConfig(BaseModel):
+    """
+    Configuration for the model's thinking parameters.
+    """
+
+    thinking_budget: int = Field(default=-1, gt=0)
+
 
 class GenerationConfig(BaseModel):
     """
@@ -107,6 +114,7 @@ class GenerationConfig(BaseModel):
     """
 
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_output_tokens: int = Field(default=2048, gt=0)
+    max_output_tokens: Optional[int] = Field(default=None, gt=0)
     top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     top_k: Optional[int] = Field(default=None, gt=0)
+    thinking_config: ThinkingConfig = Field(default_factory=ThinkingConfig)

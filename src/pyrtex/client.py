@@ -504,7 +504,6 @@ class Job(Generic[T]):
                 "request": {
                     "contents": [{"role": "user", "parts": parts}],
                     "generation_config": request_gen_config,
-                    # No 'tools' or 'tool_config' keys
                 },
             }
             jsonl_lines.append(json.dumps(instance_payload))

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pyrtex.config import GenerationConfig, InfrastructureConfig
+from pyrtex.config import GenerationConfig, InfrastructureConfig, ThinkingConfig
 
 
 class TestInfrastructureConfig:
@@ -186,7 +186,7 @@ class TestGenerationConfig:
         config = GenerationConfig()
 
         assert config.temperature == 0.0
-        assert config.max_output_tokens == 2048
+        assert config.max_output_tokens == None
         assert config.top_p is None
         assert config.top_k is None
 
@@ -263,7 +263,20 @@ class TestGenerationConfig:
 
         data = config.model_dump(exclude_none=True)
 
-        assert data == {"temperature": 0.7, "max_output_tokens": 1024, "top_p": 0.9}
+        assert data == {"temperature": 0.7, "max_output_tokens": 1024, "top_p": 0.9, "thinking_config": {"thinking_budget": -1}}
+        
+    def test_model_dump_with_thinking_config(self):
+        """Test serialization includes thinking_config."""
+        config = GenerationConfig(
+            temperature=0.5,
+            max_output_tokens=512,
+            top_p=0.9,
+            thinking_config=ThinkingConfig(thinking_budget=100)
+        )
+
+        data = config.model_dump(exclude_none=True)
+
+        assert data == {"temperature": 0.5, "max_output_tokens": 512, "top_p": 0.9, "thinking_config": {"thinking_budget": 100}}
 
     def test_model_dump_exclude_none(self):
         """Test serialization excludes None values."""
@@ -275,6 +288,6 @@ class TestGenerationConfig:
 
         data = config.model_dump(exclude_none=True)
 
-        assert data == {"temperature": 0.5, "max_output_tokens": 512}
+        assert data == {"temperature": 0.5, "max_output_tokens": 512, "thinking_config": {"thinking_budget": -1}}
         assert "top_p" not in data
         assert "top_k" not in data
