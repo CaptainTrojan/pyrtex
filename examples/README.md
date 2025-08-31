@@ -76,6 +76,13 @@ Non-blocking multi-process pattern using `serialize()` and `reconnect_from_state
 - Process C: reconnect & stream results
 - Enables serverless / distributed orchestration (cron, queue workers)
 
+### 10. Thinking Settings (`10_thinking_settings.py`)
+Control the model's reasoning process using ThinkingConfig.
+- Configure thinking budget for computational reasoning
+- Compare different reasoning depths
+- Balance response speed vs. analysis quality
+- Optimize for quick decisions or thorough analysis
+
 ## Key Concepts
 
 **Synchronous Workflow:**
@@ -118,6 +125,11 @@ else:
 - Support enums for constrained values
 - Nested models and lists work
 - Type validation included
+
+**Configuration Options:**
+- `GenerationConfig`: Control temperature, max tokens, top_p, top_k
+- `ThinkingConfig`: Control reasoning budget for models that support thinking
+- `InfrastructureConfig`: Customize GCP resources and authentication
 
 ## Simulation Mode
 

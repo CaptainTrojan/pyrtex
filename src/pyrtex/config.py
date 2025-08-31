@@ -99,12 +99,13 @@ class InfrastructureConfig(BaseSettings):
         except (json.JSONDecodeError, FileNotFoundError, KeyError):
             return False
 
+
 class ThinkingConfig(BaseModel):
     """
     Configuration for the model's thinking parameters.
     """
 
-    thinking_budget: int = Field(default=-1, gt=0)
+    thinking_budget: int = Field(default=-1, ge=-1)
 
 
 class GenerationConfig(BaseModel):
