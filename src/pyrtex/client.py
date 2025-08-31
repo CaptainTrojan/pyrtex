@@ -76,7 +76,13 @@ class Job(Generic[T]):
 
         self._session_id: str = uuid.uuid4().hex[:10]
         self._requests: List[
-            tuple[Hashable, BaseModel, Optional[Type[BaseModel]], Optional[str], Optional[GenerationConfig]]
+            tuple[
+                Hashable,
+                BaseModel,
+                Optional[Type[BaseModel]],
+                Optional[str],
+                Optional[GenerationConfig],
+            ]
         ] = []
         self._instance_map: Dict[str, tuple[Hashable, Type[BaseModel]]] = {}
         self._batch_job: Optional[aiplatform.BatchPredictionJob] = None
@@ -347,7 +353,9 @@ class Job(Generic[T]):
         if output_schema:
             self._validate_schema(output_schema)
 
-        self._requests.append((request_key, data, output_schema, prompt_template, generation_config))
+        self._requests.append(
+            (request_key, data, output_schema, prompt_template, generation_config)
+        )
         return self
 
     def _upload_file_to_gcs(
@@ -464,9 +472,13 @@ class Job(Generic[T]):
         jsonl_lines = []
         gcs_session_folder = f"batch-inputs/{self._session_id}"
 
-        for i, (request_key, data_model, override_schema, override_prompt, override_generation_config) in enumerate(
-            self._requests
-        ):
+        for i, (
+            request_key,
+            data_model,
+            override_schema,
+            override_prompt,
+            override_generation_config,
+        ) in enumerate(self._requests):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
 
             # Determine which schema to use and store it for result parsing
@@ -499,7 +511,9 @@ class Job(Generic[T]):
             parts.append({"text": rendered_prompt})
 
             # Use per-request generation config if provided, else job-level config
-            generation_config_to_use = override_generation_config or self.generation_config
+            generation_config_to_use = (
+                override_generation_config or self.generation_config
+            )
             request_gen_config = generation_config_to_use.model_dump(exclude_none=True)
             request_gen_config["response_mime_type"] = "application/json"
             request_gen_config["response_schema"] = self._get_flattened_schema(
