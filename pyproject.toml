@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyrtex"
-version = "0.2.1"
+version = "0.2.2"
 description = "A Python library for batch text extraction and processing using Google Cloud Vertex AI"
 readme = "README.md"
 requires-python = ">=3.9"
