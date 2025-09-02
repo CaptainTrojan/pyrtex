@@ -515,6 +515,15 @@ class Job(Generic[T]):
                 override_generation_config or self.generation_config
             )
             request_gen_config = generation_config_to_use.model_dump(exclude_none=True)
+
+            if (
+                self.model == "gemini-2.5-pro"
+                and request_gen_config["thinking_config"]["thinking_budget"] == 0
+            ):
+                # Can't disable thinking for this specific model. We'll limit it
+                # at least
+                request_gen_config["thinking_config"]["thinking_budget"] = 128
+
             request_gen_config["response_mime_type"] = "application/json"
             request_gen_config["response_schema"] = self._get_flattened_schema(
                 schema_to_use

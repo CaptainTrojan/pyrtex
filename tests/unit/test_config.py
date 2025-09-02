@@ -267,7 +267,7 @@ class TestGenerationConfig:
             "temperature": 0.7,
             "max_output_tokens": 1024,
             "top_p": 0.9,
-            "thinking_config": {"thinking_budget": -1},
+            "thinking_config": {"thinking_budget": 0},
         }
 
     def test_model_dump_with_thinking_config(self):
@@ -301,7 +301,7 @@ class TestGenerationConfig:
         assert data == {
             "temperature": 0.5,
             "max_output_tokens": 512,
-            "thinking_config": {"thinking_budget": -1},
+            "thinking_config": {"thinking_budget": 0},
         }
         assert "top_p" not in data
         assert "top_k" not in data

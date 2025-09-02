@@ -105,7 +105,7 @@ class ThinkingConfig(BaseModel):
     Configuration for the model's thinking parameters.
     """
 
-    thinking_budget: int = Field(default=-1, ge=-1)
+    thinking_budget: int = Field(default=0, ge=-1)  # By default, thinking is off
 
 
 class GenerationConfig(BaseModel):

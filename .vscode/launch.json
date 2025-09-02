@@ -1,0 +1,125 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "01 - Basic Text Extraction",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/01_basic_text_extraction.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "02 - Enum Constraints",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/02_enum_constraints.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "03 - Image Processing",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/03_image_processing.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "04 - PDF Processing",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/04_pdf_processing.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "05 - Batch Processing",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/05_batch_processing.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "06 - Multi File Input",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/06_multi_file_input.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "07 - Multi Format Processing",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/07_multi_format_processing.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "08 - Schema Overrides",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/08_schema_overrides.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "09 - Async Reconnect",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/09_async_reconnect.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "10 - Thinking Settings",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/10_thinking_settings.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "Generate Sample Data",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/generate_sample_data.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        }
+    ]
+}
