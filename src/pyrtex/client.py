@@ -3,15 +3,27 @@
 import json
 import logging
 import sys
+import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Generic, Hashable, Iterator, List, Optional, Type, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Hashable,
+    Iterator,
+    List,
+    Optional,
+    Type,
+    Union,
+)
 
 import google.cloud.aiplatform as aiplatform
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage
 import jinja2
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, ServiceUnavailable
 from google.cloud.aiplatform_v1.types import JobState
 from pydantic import BaseModel
 
@@ -295,12 +307,20 @@ class Job(Generic[T]):
             bucket_name = self.config.gcs_bucket_name
             location = self.config.location
             logger.info(f"Creating GCS bucket '{bucket_name}' in {location}...")
-            bucket = self._storage_client.create_bucket(
-                self.config.gcs_bucket_name, location=self.config.location
+            bucket = self._retry_with_exponential_backoff(
+                operation=lambda: self._storage_client.create_bucket(
+                    self.config.gcs_bucket_name, location=self.config.location
+                ),
+                operation_name="GCS bucket creation",
             )
         bucket.clear_lifecyle_rules()
         bucket.add_lifecycle_delete_rule(age=self.config.gcs_file_retention_days)
-        bucket.patch()
+
+        # Use retry mechanism for bucket patching
+        self._retry_with_exponential_backoff(
+            operation=lambda: bucket.patch(),
+            operation_name="GCS bucket lifecycle configuration update",
+        )
         logger.info("GCS bucket is ready.")
         dataset_id_full = f"{self.config.project_id}.{self.config.bq_dataset_id}"
         try:
@@ -312,12 +332,80 @@ class Job(Generic[T]):
             )
             dataset_ref = bigquery.Dataset(dataset_id_full)
             dataset_ref.location = self.config.location
-            dataset = self._bigquery_client.create_dataset(dataset_ref)
+            dataset = self._retry_with_exponential_backoff(
+                operation=lambda: self._bigquery_client.create_dataset(dataset_ref),
+                operation_name="BigQuery dataset creation",
+            )
         dataset.default_table_expiration_ms = (
             self.config.bq_table_retention_days * 24 * 60 * 60 * 1000
         )
-        self._bigquery_client.update_dataset(dataset, ["default_table_expiration_ms"])
+
+        # Use retry mechanism for BigQuery dataset update
+        self._retry_with_exponential_backoff(
+            operation=lambda: self._bigquery_client.update_dataset(
+                dataset, ["default_table_expiration_ms"]
+            ),
+            operation_name="BigQuery dataset configuration update",
+        )
         logger.info("BigQuery dataset is ready.")
+
+    def _retry_with_exponential_backoff(
+        self,
+        operation: Callable[[], Any],
+        operation_name: str,
+        max_retries: int = 3,
+        initial_delay: float = 1.0,
+        backoff_factor: float = 2.0,
+    ) -> Any:
+        """
+        Retry an operation with exponential backoff for transient errors.
+
+        Args:
+            operation: The callable to execute
+            operation_name: Human-readable name for logging
+            max_retries: Maximum number of retry attempts
+            initial_delay: Initial delay in seconds
+            backoff_factor: Multiplier for delay between retries
+
+        Returns:
+            The result of the operation
+
+        Raises:
+            The last exception encountered if all retries fail
+        """
+        last_exception = None
+        delay = initial_delay
+
+        for attempt in range(max_retries + 1):
+            try:
+                return operation()
+            except (ServiceUnavailable, Exception) as e:
+                last_exception = e
+
+                # Don't retry on the last attempt
+                if attempt == max_retries:
+                    break
+
+                # Check if it's a retryable error
+                if (
+                    isinstance(e, ServiceUnavailable)
+                    or "503" in str(e)
+                    or "internal error" in str(e).lower()
+                ):
+                    logger.warning(
+                        f"{operation_name} failed (attempt {attempt + 1}/"
+                        f"{max_retries + 1}): {e}. "
+                        f"Retrying in {delay:.1f} seconds..."
+                    )
+                    time.sleep(delay)
+                    delay *= backoff_factor
+                else:
+                    # Non-retryable error, re-raise immediately
+                    raise
+
+        # All retries exhausted
+        logger.error(f"{operation_name} failed after {max_retries + 1} attempts")
+        raise last_exception
 
     def add_request(
         self,
@@ -415,10 +503,21 @@ class Job(Generic[T]):
             }
             mime_type = gemini_supported_types.get(ext, "text/plain")
 
+        # Use retry mechanism for file uploads
         if isinstance(source, bytes):
-            blob.upload_from_string(source, content_type=mime_type)
+            self._retry_with_exponential_backoff(
+                operation=lambda: blob.upload_from_string(
+                    source, content_type=mime_type
+                ),
+                operation_name=f"GCS file upload (bytes to {gcs_path})",
+            )
         else:
-            blob.upload_from_filename(str(source), content_type=mime_type)
+            self._retry_with_exponential_backoff(
+                operation=lambda: blob.upload_from_filename(
+                    str(source), content_type=mime_type
+                ),
+                operation_name=f"GCS file upload ({source} to {gcs_path})",
+            )
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
 

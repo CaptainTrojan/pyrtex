@@ -10,7 +10,7 @@ from typing import Dict, Union
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, ServiceUnavailable
 from pydantic import BaseModel
 
 from pyrtex.client import Job
@@ -2148,3 +2148,158 @@ class TestPydanticModelFromSchema:
         assert instance.object_field == {"key": "value"}
         assert instance.string_field == "test"
         assert instance.unknown_field == "anything"
+
+
+class TestRetryMechanism:
+    """Test the retry mechanism with exponential backoff."""
+
+    @patch("pyrtex.client.time.sleep")  # Mock sleep to speed up tests
+    def test_retry_with_exponential_backoff_success_after_retries(
+        self, mock_sleep, mock_gcp_clients
+    ):
+        """Test that retry mechanism succeeds after initial failures."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+
+        # Mock an operation that fails twice then succeeds
+        call_count = 0
+
+        def mock_operation():
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                # Simulate ServiceUnavailable error for first two attempts
+                from google.api_core.exceptions import ServiceUnavailable
+
+                raise ServiceUnavailable(
+                    "503 We encountered an internal error. Please try again."
+                )
+            return "success"
+
+        # Test the retry mechanism
+        result = job._retry_with_exponential_backoff(
+            operation=mock_operation,
+            operation_name="test_operation",
+            max_retries=3,
+            initial_delay=0.1,
+            backoff_factor=2.0,
+        )
+
+        assert result == "success"
+        assert call_count == 3  # Failed twice, succeeded on third attempt
+        assert mock_sleep.call_count == 2  # Slept between attempts
+
+        # Verify exponential backoff delays
+        expected_delays = [0.1, 0.2]  # 0.1 * 2^0, 0.1 * 2^1
+        actual_delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert actual_delays == expected_delays
+
+    @patch("pyrtex.client.time.sleep")
+    def test_retry_with_503_string_error(self, mock_sleep, mock_gcp_clients):
+        """Test retry mechanism with '503' in error string."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+
+        call_count = 0
+
+        def mock_operation():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception(
+                    "503 PATCH https://storage.googleapis.com/storage/v1/b/bucket:"
+                    " We encountered an internal error."
+                )
+            return "success"
+
+        result = job._retry_with_exponential_backoff(
+            operation=mock_operation, operation_name="test_503_error", max_retries=2
+        )
+
+        assert result == "success"
+        assert call_count == 2
+
+    @patch("pyrtex.client.time.sleep")
+    def test_retry_with_internal_error_string(self, mock_sleep, mock_gcp_clients):
+        """Test retry mechanism with 'internal error' in error string."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+
+        call_count = 0
+
+        def mock_operation():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception("We encountered an INTERNAL ERROR. Please try again.")
+            return "success"
+
+        result = job._retry_with_exponential_backoff(
+            operation=mock_operation,
+            operation_name="test_internal_error",
+            max_retries=2,
+        )
+
+        assert result == "success"
+        assert call_count == 2
+
+    def test_retry_non_retryable_error_immediate_failure(self, mock_gcp_clients):
+        """Test that non-retryable errors are raised immediately without retries."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+
+        def mock_operation():
+            raise ValueError("This is not a retryable error")
+
+        with pytest.raises(ValueError, match="This is not a retryable error"):
+            job._retry_with_exponential_backoff(
+                operation=mock_operation,
+                operation_name="test_non_retryable",
+                max_retries=3,
+            )
+
+    @patch("pyrtex.client.time.sleep")
+    def test_retry_exhausts_all_attempts(self, mock_sleep, mock_gcp_clients):
+        """Test that retry mechanism exhausts all attempts and raises
+        the last exception."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test",
+            simulation_mode=True,
+        )
+
+        call_count = 0
+
+        def mock_operation():
+            nonlocal call_count
+            call_count += 1
+            from google.api_core.exceptions import ServiceUnavailable
+
+            raise ServiceUnavailable(f"Error attempt {call_count}")
+
+        with pytest.raises(ServiceUnavailable, match="Error attempt 4"):
+            job._retry_with_exponential_backoff(
+                operation=mock_operation,
+                operation_name="test_exhausted_retries",
+                max_retries=3,
+            )
+
+        assert call_count == 4  # Initial attempt + 3 retries
+        assert mock_sleep.call_count == 3  # Slept between attempts
