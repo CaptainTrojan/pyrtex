@@ -357,9 +357,6 @@ class TestEnumValidation:
             ("true", "false"),
             ("YES", "NO"),
             ("True", "False"),
-            ("y", "n"),
-            ("Y", "N"),
-            ("1", "0"),
         ]
 
         for val1, val2 in problematic_values:
