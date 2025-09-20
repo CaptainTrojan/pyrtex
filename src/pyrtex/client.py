@@ -1094,12 +1094,6 @@ class Job(Generic[T]):
                     "NO",
                     "TRUE",
                     "FALSE",
-                    "y",
-                    "n",
-                    "Y",
-                    "N",
-                    "1",
-                    "0",
                 }
                 for member in type_to_check:
                     if isinstance(member.value, str) and member.value.lower() in {
