@@ -109,7 +109,8 @@ class Job(Generic[T]):
             return
 
         try:
-            credentials = self._get_credentials()
+            # Call the shared static method
+            credentials = Job._get_credentials_from_config(self.config)
 
             # Initialize clients with credentials
             self._storage_client = storage.Client(
@@ -133,44 +134,14 @@ class Job(Generic[T]):
         except Exception as e:
             self._handle_authentication_error(e)
 
-    def _get_credentials(self):
-        """Get Google Cloud credentials using various methods."""
-        import os
-
-        # Method 1: Service account key JSON string (environment variable)
-        if self.config.service_account_key_json:
-            logger.info("Using service account credentials from JSON string")
-            return self._credentials_from_json_string(
-                self.config.service_account_key_json
-            )
-
-        # Method 2: Service account key file path (explicit service account file)
-        elif (
-            self.config.service_account_key_path
-            and os.path.exists(self.config.service_account_key_path)
-            and self._is_service_account_file(self.config.service_account_key_path)
-        ):
-            logger.info(
-                f"Using service account credentials from file: "
-                f"{self.config.service_account_key_path}"
-            )
-            return self._credentials_from_file(self.config.service_account_key_path)
-
-        # Method 3: Application Default Credentials
-        # (covers both gcloud user login and service accounts)
-        else:
-            logger.info("Using Application Default Credentials")
-            return self._credentials_from_adc()
-
-    def _is_service_account_file(self, file_path: str) -> bool:
+    @staticmethod
+    def _is_service_account_file(file_path: str) -> bool:
         """Check if a file is a service account key file (not user ADC file)."""
         try:
             import json
 
             with open(file_path, "r") as f:
                 data = json.load(f)
-
-            # Service account files have these fields, user ADC files don't
             required_fields = {"type", "client_email", "private_key", "token_uri"}
             return (
                 required_fields.issubset(data.keys())
@@ -179,50 +150,46 @@ class Job(Generic[T]):
         except (json.JSONDecodeError, FileNotFoundError, KeyError):
             return False
 
-    def _credentials_from_json_string(self, json_string: str):
+    @staticmethod
+    @staticmethod
+    def _credentials_from_json_string(config: InfrastructureConfig):
         """Create credentials from JSON string."""
         import json
-
         from google.oauth2 import service_account
 
         try:
-            key_info = json.loads(json_string)
+            key_info = json.loads(config.service_account_key_json)
             credentials = service_account.Credentials.from_service_account_info(
                 key_info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
-
-            # Auto-discover project ID if not set
-            if not self.config.project_id and hasattr(credentials, "project_id"):
-                self.config.project_id = credentials.project_id
-
+            if not config.project_id and hasattr(credentials, "project_id"):
+                config.project_id = credentials.project_id
             return credentials
-        except json.JSONDecodeError as e:
-            raise ConfigurationError(f"Invalid JSON in service account key: {e}")
         except Exception as e:
             raise ConfigurationError(
                 f"Failed to load service account from JSON string: {e}"
             )
 
-    def _credentials_from_file(self, file_path: str):
+    @staticmethod
+    def _credentials_from_file(config: InfrastructureConfig):
         """Create credentials from service account file."""
         from google.oauth2 import service_account
 
         try:
             credentials = service_account.Credentials.from_service_account_file(
-                file_path, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                config.service_account_key_path,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
             )
-
-            # Auto-discover project ID if not set
-            if not self.config.project_id and hasattr(credentials, "project_id"):
-                self.config.project_id = credentials.project_id
-
+            if not config.project_id and hasattr(credentials, "project_id"):
+                config.project_id = credentials.project_id
             return credentials
         except Exception as e:
             raise ConfigurationError(
-                f"Failed to load service account from file '{file_path}': {e}"
+                f"Failed to load service account from file '{config.service_account_key_path}': {e}"
             )
 
-    def _credentials_from_adc(self):
+    @staticmethod
+    def _credentials_from_adc(config: InfrastructureConfig):
         """Create credentials using Application Default Credentials."""
         import google.auth
 
@@ -230,16 +197,34 @@ class Job(Generic[T]):
             credentials, discovered_project = google.auth.default(
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
-
-            # Auto-discover project ID if not set
-            if not self.config.project_id and discovered_project:
-                self.config.project_id = discovered_project
-
+            if not config.project_id and discovered_project:
+                config.project_id = discovered_project
             return credentials
         except Exception as e:
             raise ConfigurationError(
                 f"Failed to get Application Default Credentials: {e}"
             )
+
+    @staticmethod
+    def _get_credentials_from_config(config: InfrastructureConfig):
+        """Get Google Cloud credentials using various methods from a config object."""
+        import os
+
+        if config.service_account_key_json:
+            logger.info("Using service account credentials from JSON string")
+            return Job._credentials_from_json_string(config)
+        elif (
+            config.service_account_key_path
+            and os.path.exists(config.service_account_key_path)
+            and Job._is_service_account_file(config.service_account_key_path)
+        ):
+            logger.info(
+                f"Using service account credentials from file: {config.service_account_key_path}"
+            )
+            return Job._credentials_from_file(config)
+        else:
+            logger.info("Using Application Default Credentials")
+            return Job._credentials_from_adc(config)
 
     def _handle_authentication_error(self, error: Exception):
         """Provide helpful error messages for authentication failures."""
@@ -1146,36 +1131,41 @@ class Job(Generic[T]):
     @classmethod
     def check_is_done_from_state(cls, state_json: str) -> Optional[bool]:
         """
-        Checks if a job is done based on the serialized state JSON.
+        Checks if a job is done based on the serialized state JSON without a full deserialization.
         Args:
             state_json: The JSON string generated by the .serialize() method.
         Returns:
             True if the job is done (succeeded, failed, or cancelled),
-            False if it is still running, or None if the job does not exist.
+            False if it is still running, or None if an error occurs.
         """
-
-        state_data = json.loads(state_json)
-        batch_job_resource_name = state_data["batch_job_resource_name"]
-
-        aiplatform.init(
-            project=state_data["infrastructure_config"]["project_id"],
-            location=state_data["infrastructure_config"]["location"],
-        )
-
         try:
+            state_data = json.loads(state_json)
+            config = InfrastructureConfig(**state_data["infrastructure_config"])
+            batch_job_resource_name = state_data["batch_job_resource_name"]
+
+            # Call the shared static method to get credentials
+            credentials = cls._get_credentials_from_config(config)
+
+            aiplatform.init(
+                project=config.project_id,
+                location=config.location,
+                credentials=credentials,
+            )
+
             batch_job = aiplatform.BatchPredictionJob(batch_job_resource_name)
             job_state = batch_job.state
-            if job_state in [
+
+            return job_state in [
                 JobState.JOB_STATE_SUCCEEDED,
                 JobState.JOB_STATE_FAILED,
                 JobState.JOB_STATE_CANCELLED,
                 JobState.JOB_STATE_EXPIRED,
-            ]:
-                return True
-            else:
-                return False
+            ]
+        except NotFound:
+            logger.error(f"Job not found: {state_data.get('batch_job_resource_name')}. It may have been deleted.")
+            return None
         except Exception as e:
-            logger.error(f"Error checking job status: {e}")
+            logger.error(f"Error checking job status from state: {e}")
             return None
 
     @classmethod

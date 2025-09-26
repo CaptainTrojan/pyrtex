@@ -130,7 +130,7 @@ class TestAuthentication:
                 config=InfrastructureConfig(service_account_key_json="invalid json"),
             )
 
-        assert "Invalid JSON in service account key" in str(exc_info.value)
+        assert "Failed to load service account from JSON string" in str(exc_info.value)
 
     def test_service_account_json_string_auth_error(
         self, mock_gcp_clients_no_auth, mocker
@@ -286,8 +286,8 @@ class TestAuthentication:
             simulation_mode=True,
         )
 
-        # Test the method directly
-        credentials = job._credentials_from_adc()
+        # Test the static method directly
+        credentials = Job._credentials_from_adc(job.config)
 
         assert credentials == mock_credentials
         # The project ID should be auto-discovered and set
