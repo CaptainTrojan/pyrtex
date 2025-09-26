@@ -75,6 +75,7 @@ def test_reconnect_from_state_restores_job(mock_gcp_clients):
         config=config,
     )
     job.add_request("r1", SimpleInput(word="hello"))
+    job.add_request("r2", SimpleInput(word="hello2"))
     job.submit()
     state_json = job.serialize()
 
