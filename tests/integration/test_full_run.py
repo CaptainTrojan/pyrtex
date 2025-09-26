@@ -739,6 +739,147 @@ class TestSchemaSerializationReversibility:
         print("   Serialization cycle maintains structural and functional equivalence")
 
 
+class TestJobStateMonitoring:
+    """Test real-time job state monitoring functionality."""
+
+    @pytest.mark.incurs_costs
+    @requires_project_id
+    def test_check_is_done_from_state_real_job_lifecycle(self):
+        """Test check_is_done_from_state with a real job lifecycle.
+        
+        This test:
+        1. Submits a real job
+        2. Polls check_is_done_from_state every 20 seconds
+        3. Validates it returns False initially, then True when done
+        4. Asserts the function never returns None
+        5. Gets results to validate the complete lifecycle
+        """
+        import time
+        from pyrtex.client import Job
+
+        # Create a simple job
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Return the word '{{ word }}' in the result field.",
+        )
+
+        # Add a few requests to make the job run long enough to observe state changes
+        test_words = ["monitoring", "lifecycle", "validation"]
+        for i, word in enumerate(test_words):
+            job.add_request(f"state_test_{i}", SimpleInput(word=word))
+
+        # Submit the job and get the serialized state
+        job.submit()
+        state_json = job.serialize()
+
+        print(f"\n🔍 Starting job state monitoring test...")
+        print(f"   Job resource: {job._batch_job.resource_name}")
+
+        # Track state changes and timing
+        state_changes = []
+        start_time = time.time()
+        poll_interval = 20  # seconds
+        max_duration = 600  # 10 minutes timeout
+        never_returned_none = True
+
+        # Poll the job state using check_is_done_from_state
+        while True:
+            current_time = time.time()
+            elapsed = current_time - start_time
+
+            # Check if we've exceeded the timeout
+            if elapsed > max_duration:
+                pytest.fail(f"Job did not complete within {max_duration} seconds")
+
+            # Call the method we're testing
+            is_done = Job.check_is_done_from_state(state_json)
+            
+            # Critical assertion: should never return None for a valid job
+            if is_done is None:
+                never_returned_none = False
+                pytest.fail(
+                    f"check_is_done_from_state returned None at {elapsed:.1f}s elapsed. "
+                    "This should never happen for a successfully submitted job."
+                )
+
+            # Log the state change
+            timestamp = time.strftime("%H:%M:%S")
+            state_changes.append((elapsed, is_done, timestamp))
+            print(f"   [{timestamp}] +{elapsed:.1f}s: is_done = {is_done}")
+
+            # If the job is done, break out of the polling loop
+            if is_done:
+                print(f"   ✅ Job completed after {elapsed:.1f} seconds")
+                break
+
+            # If not done, assert it's False (not None)
+            assert is_done is False, (
+                f"Expected False for running job, got {is_done} at {elapsed:.1f}s"
+            )
+
+            # Wait before next poll
+            time.sleep(poll_interval)
+
+        # Validate the state progression
+        assert len(state_changes) >= 2, (
+            "Expected at least 2 state checks (initial False, final True), "
+            f"got {len(state_changes)}"
+        )
+
+        # First check should be False (job not done yet)
+        first_check = state_changes[0]
+        assert first_check[1] is False, (
+            f"First state check should be False, got {first_check[1]}"
+        )
+
+        # Last check should be True (job completed)
+        last_check = state_changes[-1]
+        assert last_check[1] is True, (
+            f"Last state check should be True, got {last_check[1]}"
+        )
+
+        # Assert we never got None throughout the lifecycle
+        assert never_returned_none, "check_is_done_from_state should never return None"
+
+        # Validate the complete lifecycle by getting results
+        print(f"   📊 Validating job results...")
+        
+        # Reconnect to the job and get results
+        reconnected_job = Job.reconnect_from_state(state_json)
+        results = list(reconnected_job.results())
+
+        # Validate results
+        assert len(results) == len(test_words), (
+            f"Expected {len(test_words)} results, got {len(results)}"
+        )
+
+        successful_results = [r for r in results if r.was_successful]
+        assert len(successful_results) == len(test_words), (
+            f"Expected all {len(test_words)} results to be successful, "
+            f"got {len(successful_results)}"
+        )
+
+        # Validate result mapping
+        result_by_key = {r.request_key: r for r in results}
+        for i, expected_word in enumerate(test_words):
+            key = f"state_test_{i}"
+            assert key in result_by_key, f"Missing result for key {key}"
+            result = result_by_key[key]
+            assert result.output.result == expected_word, (
+                f"Expected '{expected_word}', got '{result.output.result}' for {key}"
+            )
+
+        # Print comprehensive test summary
+        print(f"\n✅ Job state monitoring test completed successfully:")
+        print(f"   • Total polling duration: {elapsed:.1f} seconds")
+        print(f"   • Number of state checks: {len(state_changes)}")
+        print(f"   • State progression: {[s[1] for s in state_changes]}")
+        print(f"   • Never returned None: {never_returned_none}")
+        print(f"   • All {len(successful_results)} results successful")
+        print(f"   • Result validation passed")
+
+
 class TestErrorScenarios:
     """Test error scenarios that don't require real GCP."""
 
