@@ -1142,7 +1142,7 @@ class Job(Generic[T]):
             "instance_map": serializable_instance_map,
         }
         return json.dumps(state)
-    
+
     @classmethod
     def check_is_done_from_state(cls, state_json: str) -> Optional[bool]:
         """
@@ -1153,7 +1153,7 @@ class Job(Generic[T]):
             True if the job is done (succeeded, failed, or cancelled),
             False if it is still running, or None if the job does not exist.
         """
-        
+
         state_data = json.loads(state_json)
         batch_job_resource_name = state_data["batch_job_resource_name"]
 
@@ -1209,10 +1209,10 @@ class Job(Generic[T]):
             # Create a hashable representation of the schema for caching
             schema_key = json.dumps(schema_dict, sort_keys=True)
             if schema_key not in schema_cache:
-                schema_cache[schema_key] = reconnected_job._create_pydantic_model_from_schema(
-                    schema_dict
+                schema_cache[schema_key] = (
+                    reconnected_job._create_pydantic_model_from_schema(schema_dict)
                 )
-            
+
             schema_class = schema_cache[schema_key]
             reconnected_job._instance_map[instance_id] = (req_key, schema_class)
 

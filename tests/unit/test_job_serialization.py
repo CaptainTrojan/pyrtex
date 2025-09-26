@@ -177,3 +177,143 @@ def test_is_done_states(mock_gcp_clients):
     for st in non_terminal:
         mock_gcp_clients["batch_job"].state = st
         assert job.is_done is False
+
+
+def test_check_is_done_from_state_terminal_states(mocker):
+    """Test check_is_done_from_state returns True for terminal job states."""
+    # Create valid state JSON
+    state_data = {
+        "batch_job_resource_name": "test/pyrtex/123",
+        "infrastructure_config": {
+            "project_id": "test-project",
+            "location": "us-central1",
+        },
+    }
+    state_json = json.dumps(state_data)
+
+    # Mock aiplatform.init
+    mock_init = mocker.patch("google.cloud.aiplatform.init")
+
+    # Mock BatchPredictionJob
+    mock_batch_job = Mock()
+    mock_batch_prediction_job = mocker.patch(
+        "google.cloud.aiplatform.BatchPredictionJob"
+    )
+    mock_batch_prediction_job.return_value = mock_batch_job
+
+    # Test all terminal states
+    terminal_states = [
+        JobState.JOB_STATE_SUCCEEDED,
+        JobState.JOB_STATE_FAILED,
+        JobState.JOB_STATE_CANCELLED,
+        JobState.JOB_STATE_EXPIRED,
+    ]
+
+    for state in terminal_states:
+        mock_batch_job.state = state
+        result = Job.check_is_done_from_state(state_json)
+        assert result is True
+
+        # Verify aiplatform.init was called correctly
+        mock_init.assert_called_with(
+            project="test-project",
+            location="us-central1",
+        )
+
+        # Verify BatchPredictionJob was called with correct resource name
+        mock_batch_prediction_job.assert_called_with(
+            "test/pyrtex/123"
+        )
+
+
+def test_check_is_done_from_state_non_terminal_states(mocker):
+    """Test check_is_done_from_state returns False for non-terminal job states."""
+    # Create valid state JSON
+    state_data = {
+        "batch_job_resource_name": "test/pyrtex/456",
+        "infrastructure_config": {
+            "project_id": "test-project",
+            "location": "us-central1",
+        },
+    }
+    state_json = json.dumps(state_data)
+
+    # Mock aiplatform.init
+    mock_init = mocker.patch("google.cloud.aiplatform.init")
+
+    # Mock BatchPredictionJob
+    mock_batch_job = Mock()
+    mock_batch_prediction_job = mocker.patch(
+        "google.cloud.aiplatform.BatchPredictionJob"
+    )
+    mock_batch_prediction_job.return_value = mock_batch_job
+
+    # Test non-terminal states
+    non_terminal_states = [
+        JobState.JOB_STATE_PENDING,
+        JobState.JOB_STATE_QUEUED,
+        JobState.JOB_STATE_RUNNING,
+        JobState.JOB_STATE_PAUSED,
+    ]
+
+    for state in non_terminal_states:
+        mock_batch_job.state = state
+        result = Job.check_is_done_from_state(state_json)
+        assert result is False
+
+        # Verify aiplatform.init was called correctly
+        mock_init.assert_called_with(
+            project="test-project",
+            location="us-central1",
+        )
+
+
+def test_check_is_done_from_state_exception_handling(mocker):
+    """Test check_is_done_from_state returns None when exceptions occur."""
+    # Create valid state JSON
+    state_data = {
+        "batch_job_resource_name": "test/pyrtex/999",
+        "infrastructure_config": {
+            "project_id": "test-project",
+            "location": "us-central1",
+        },
+    }
+    state_json = json.dumps(state_data)
+
+    # Mock aiplatform.init
+    mock_init = mocker.patch("google.cloud.aiplatform.init")
+
+    # Mock BatchPredictionJob to raise an exception (e.g., NotFound)
+    mock_batch_prediction_job = mocker.patch(
+        "google.cloud.aiplatform.BatchPredictionJob"
+    )
+    mock_batch_prediction_job.side_effect = Exception("Job not found")
+
+    # Mock logger to capture error message
+    mock_logger = mocker.patch("pyrtex.client.logger")
+
+    result = Job.check_is_done_from_state(state_json)
+
+    # Should return None when exception occurs
+    assert result is None
+
+    # Verify error was logged
+    mock_logger.error.assert_called_once()
+    assert "Error checking job status: Job not found" in str(
+        mock_logger.error.call_args
+    )
+
+    # Verify aiplatform.init was still called
+    mock_init.assert_called_with(
+        project="test-project",
+        location="us-central1",
+    )
+
+
+def test_check_is_done_from_state_invalid_json():
+    """Test check_is_done_from_state handles invalid JSON gracefully."""
+    invalid_json = "{'invalid': json}"
+
+    # Should raise a JSON decode error, which is expected behavior
+    with pytest.raises(json.JSONDecodeError):
+        Job.check_is_done_from_state(invalid_json)
