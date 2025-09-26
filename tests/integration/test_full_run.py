@@ -746,7 +746,7 @@ class TestJobStateMonitoring:
     @requires_project_id
     def test_check_is_done_from_state_real_job_lifecycle(self):
         """Test check_is_done_from_state with a real job lifecycle.
-        
+
         This test:
         1. Submits a real job
         2. Polls check_is_done_from_state every 20 seconds
@@ -755,6 +755,7 @@ class TestJobStateMonitoring:
         5. Gets results to validate the complete lifecycle
         """
         import time
+
         from pyrtex.client import Job
 
         # Create a simple job
@@ -773,7 +774,7 @@ class TestJobStateMonitoring:
         job.submit()
         state_json = job.serialize()
 
-        print(f"\n🔍 Starting job state monitoring test...")
+        print("\n🔍 Starting job state monitoring test...")
         print(f"   Job resource: {job._batch_job.resource_name}")
 
         # Track state changes and timing
@@ -794,12 +795,12 @@ class TestJobStateMonitoring:
 
             # Call the method we're testing
             is_done = Job.check_is_done_from_state(state_json)
-            
+
             # Critical assertion: should never return None for a valid job
             if is_done is None:
                 never_returned_none = False
                 pytest.fail(
-                    f"check_is_done_from_state returned None at {elapsed:.1f}s elapsed. "
+                    f"check state returned None at {elapsed:.1f}s elapsed. "
                     "This should never happen for a successfully submitted job."
                 )
 
@@ -814,9 +815,9 @@ class TestJobStateMonitoring:
                 break
 
             # If not done, assert it's False (not None)
-            assert is_done is False, (
-                f"Expected False for running job, got {is_done} at {elapsed:.1f}s"
-            )
+            assert (
+                is_done is False
+            ), f"Expected False for running job, got {is_done} at {elapsed:.1f}s"
 
             # Wait before next poll
             time.sleep(poll_interval)
@@ -829,30 +830,30 @@ class TestJobStateMonitoring:
 
         # First check should be False (job not done yet)
         first_check = state_changes[0]
-        assert first_check[1] is False, (
-            f"First state check should be False, got {first_check[1]}"
-        )
+        assert (
+            first_check[1] is False
+        ), f"First state check should be False, got {first_check[1]}"
 
         # Last check should be True (job completed)
         last_check = state_changes[-1]
-        assert last_check[1] is True, (
-            f"Last state check should be True, got {last_check[1]}"
-        )
+        assert (
+            last_check[1] is True
+        ), f"Last state check should be True, got {last_check[1]}"
 
         # Assert we never got None throughout the lifecycle
         assert never_returned_none, "check_is_done_from_state should never return None"
 
         # Validate the complete lifecycle by getting results
-        print(f"   📊 Validating job results...")
-        
+        print("   📊 Validating job results...")
+
         # Reconnect to the job and get results
         reconnected_job = Job.reconnect_from_state(state_json)
         results = list(reconnected_job.results())
 
         # Validate results
-        assert len(results) == len(test_words), (
-            f"Expected {len(test_words)} results, got {len(results)}"
-        )
+        assert len(results) == len(
+            test_words
+        ), f"Expected {len(test_words)} results, got {len(results)}"
 
         successful_results = [r for r in results if r.was_successful]
         assert len(successful_results) == len(test_words), (
@@ -866,18 +867,18 @@ class TestJobStateMonitoring:
             key = f"state_test_{i}"
             assert key in result_by_key, f"Missing result for key {key}"
             result = result_by_key[key]
-            assert result.output.result == expected_word, (
-                f"Expected '{expected_word}', got '{result.output.result}' for {key}"
-            )
+            assert (
+                result.output.result == expected_word
+            ), f"Expected '{expected_word}', got '{result.output.result}' for {key}"
 
         # Print comprehensive test summary
-        print(f"\n✅ Job state monitoring test completed successfully:")
+        print("\n✅ Job state monitoring test completed successfully:")
         print(f"   • Total polling duration: {elapsed:.1f} seconds")
         print(f"   • Number of state checks: {len(state_changes)}")
         print(f"   • State progression: {[s[1] for s in state_changes]}")
         print(f"   • Never returned None: {never_returned_none}")
         print(f"   • All {len(successful_results)} results successful")
-        print(f"   • Result validation passed")
+        print("   • Result validation passed")
 
 
 class TestErrorScenarios:

@@ -193,10 +193,12 @@ def test_check_is_done_from_state_terminal_states(mocker):
 
     # Mock aiplatform.init
     mock_init = mocker.patch("google.cloud.aiplatform.init")
-    
+
     # Mock credential-related methods
     mock_credentials = Mock()
-    mocker.patch("pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials)
+    mocker.patch(
+        "pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials
+    )
 
     # Mock BatchPredictionJob
     mock_batch_job = Mock()
@@ -226,9 +228,7 @@ def test_check_is_done_from_state_terminal_states(mocker):
         )
 
         # Verify BatchPredictionJob was called with correct resource name
-        mock_batch_prediction_job.assert_called_with(
-            "test/pyrtex/123"
-        )
+        mock_batch_prediction_job.assert_called_with("test/pyrtex/123")
 
 
 def test_check_is_done_from_state_non_terminal_states(mocker):
@@ -245,10 +245,12 @@ def test_check_is_done_from_state_non_terminal_states(mocker):
 
     # Mock aiplatform.init
     mock_init = mocker.patch("google.cloud.aiplatform.init")
-    
+
     # Mock credential-related methods
     mock_credentials = Mock()
-    mocker.patch("pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials)
+    mocker.patch(
+        "pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials
+    )
 
     # Mock BatchPredictionJob
     mock_batch_job = Mock()
@@ -292,10 +294,12 @@ def test_check_is_done_from_state_exception_handling(mocker):
 
     # Mock aiplatform.init
     mock_init = mocker.patch("google.cloud.aiplatform.init")
-    
+
     # Mock credential-related methods
     mock_credentials = Mock()
-    mocker.patch("pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials)
+    mocker.patch(
+        "pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials
+    )
 
     # Mock BatchPredictionJob to raise an exception (e.g., NotFound)
     mock_batch_prediction_job = mocker.patch(
@@ -348,13 +352,16 @@ def test_check_is_done_from_state_job_not_found(mocker):
 
     # Mock aiplatform.init
     mock_init = mocker.patch("google.cloud.aiplatform.init")
-    
+
     # Mock credential-related methods
     mock_credentials = Mock()
-    mocker.patch("pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials)
+    mocker.patch(
+        "pyrtex.client.Job._get_credentials_from_config", return_value=mock_credentials
+    )
 
     # Mock BatchPredictionJob to raise NotFound exception
     from google.api_core.exceptions import NotFound
+
     mock_batch_prediction_job = mocker.patch(
         "google.cloud.aiplatform.BatchPredictionJob"
     )
