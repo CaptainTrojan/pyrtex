@@ -151,7 +151,6 @@ class Job(Generic[T]):
             return False
 
     @staticmethod
-    @staticmethod
     def _credentials_from_json_string(config: InfrastructureConfig):
         """Create credentials from JSON string."""
         import json
