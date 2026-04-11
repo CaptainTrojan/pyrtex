@@ -83,6 +83,12 @@ Control the model's reasoning process using ThinkingConfig.
 - Balance response speed vs. analysis quality
 - Optimize for quick decisions or thorough analysis
 
+### 11. Dynamic Schemas (`11_dynamic_schema.py`)
+Create Pydantic schemas at runtime from dictionaries/JSON Schema.
+- Ideal for database-driven or API-provided schema definitions
+- Overcomes Vertex AI's `anyOf` constraints automatically
+- Uses `create_model_from_schema` utility
+
 ## Key Concepts
 
 **Synchronous Workflow:**

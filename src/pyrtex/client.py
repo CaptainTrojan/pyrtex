@@ -33,6 +33,75 @@ from .models import BatchResult, T
 
 logger = logging.getLogger(__name__)
 
+def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
+    """
+    Dynamically creates a Pydantic model class recursively from a JSON schema dictionary.
+    This utility is useful for generating runtime output schemas from APIs or databases.
+    """
+    from pydantic import create_model
+    from enum import Enum
+
+    model_name = schema.get("title", "DynamicModel")
+    fields = {}
+    defs = schema.get("$defs", schema.get("definitions", {}))
+
+    def _resolve_ref(ref_str: str) -> Dict[str, Any]:
+        ref_name = ref_str.split("/")[-1]
+        return defs.get(ref_name, {})
+
+    def _parse_type(prop_schema: Dict[str, Any], prop_name: str) -> Any:
+        if "$ref" in prop_schema:
+            resolved = _resolve_ref(prop_schema["$ref"])
+            return create_model_from_schema({"title": resolved.get("title", prop_name), "$defs": defs, **resolved})
+
+        t = prop_schema.get("type", "any")
+        if t == "integer":
+            return int
+        elif t == "number":
+            return float
+        elif t == "boolean":
+            return bool
+        elif t == "string":
+            if "enum" in prop_schema:
+                enum_name = f"{model_name}_{prop_name}_Enum".title().replace("_", "")
+                enum_dict = {str(v).upper(): v for v in prop_schema["enum"]}
+                return Enum(enum_name, enum_dict)
+            return str
+        elif t == "array":
+            items_schema = prop_schema.get("items", {})
+            item_type = _parse_type(items_schema, prop_name + "_item")
+            return List[item_type]
+        elif t == "object":
+            if "properties" in prop_schema:
+                sub_schema = {"$defs": defs, **prop_schema}
+                sub_title = prop_schema.get("title", f"{model_name}_{prop_name}".title().replace("_", ""))
+                sub_schema["title"] = sub_title
+                return create_model_from_schema(sub_schema)
+            if "additionalProperties" in prop_schema:
+                val_schema = prop_schema["additionalProperties"]
+                if isinstance(val_schema, dict):
+                    val_type = _parse_type(val_schema, prop_name + "_val")
+                    return Dict[str, val_type]
+            return Dict[str, Any]
+        return Any
+
+    required_fields = set(schema.get("required", []))
+
+    for prop_name, prop_schema in schema.get("properties", {}).items():
+        field_type = _parse_type(prop_schema, prop_name)
+        if prop_name in required_fields:
+            fields[prop_name] = (field_type, ...)
+        else:
+            default = prop_schema.get("default")
+            if default is None:
+                # To satisfy Vertex AI constraints, missing required/defaults
+                # typically need to be marked required or given a type-safe default.
+                # We'll just define it as required to avoid anyOf issues.
+                fields[prop_name] = (field_type, ...)
+            else:
+                fields[prop_name] = (field_type, default)
+
+    return create_model(model_name, **fields)
 
 class Job(Generic[T]):
     """
@@ -630,26 +699,7 @@ class Job(Generic[T]):
         self, schema: Dict[str, Any]
     ) -> Type[BaseModel]:
         """Dynamically creates a Pydantic model class from a JSON schema dictionary."""
-        from pydantic import create_model
-
-        model_name = schema.get("title", "DynamicModel")
-        fields = {}
-        for prop_name, prop_schema in schema.get("properties", {}).items():
-            field_type = Any
-            if prop_schema.get("type") == "integer":
-                field_type = int
-            elif prop_schema.get("type") == "number":
-                field_type = float
-            elif prop_schema.get("type") == "boolean":
-                field_type = bool
-            elif prop_schema.get("type") == "array":
-                field_type = List
-            elif prop_schema.get("type") == "object":
-                field_type = Dict
-            elif prop_schema.get("type") == "string":
-                field_type = str
-            fields[prop_name] = (field_type, ...)
-        return create_model(model_name, **fields)
+        return create_model_from_schema(schema)
 
     def submit(self, dry_run: bool = False) -> "Job[T]":
         """Constructs and submits the batch job."""
@@ -988,7 +1038,11 @@ class Job(Generic[T]):
                 elif field_type == datetime:
                     dummy_data[field_name] = datetime.now()
                 else:
-                    dummy_data[field_name] = f"dummy_{field_name}"
+                    from enum import Enum
+                    if isinstance(field_type, type) and issubclass(field_type, Enum):
+                        dummy_data[field_name] = list(field_type)[0]
+                    else:
+                        dummy_data[field_name] = f"dummy_{field_name}"
 
         return schema_to_mock(**dummy_data)
 
