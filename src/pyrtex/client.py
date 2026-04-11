@@ -33,13 +33,16 @@ from .models import BatchResult, T
 
 logger = logging.getLogger(__name__)
 
+
 def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
     """
-    Dynamically creates a Pydantic model class recursively from a JSON schema dictionary.
-    This utility is useful for generating runtime output schemas from APIs or databases.
+    Dynamically creates a Pydantic model class recursively from a JSON
+    schema dictionary. This utility is useful for generating runtime
+    output schemas from APIs or databases.
     """
-    from pydantic import create_model
     from enum import Enum
+
+    from pydantic import create_model
 
     model_name = schema.get("title", "DynamicModel")
     fields = {}
@@ -52,7 +55,9 @@ def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
     def _parse_type(prop_schema: Dict[str, Any], prop_name: str) -> Any:
         if "$ref" in prop_schema:
             resolved = _resolve_ref(prop_schema["$ref"])
-            return create_model_from_schema({"title": resolved.get("title", prop_name), "$defs": defs, **resolved})
+            return create_model_from_schema(
+                {"title": resolved.get("title", prop_name), "$defs": defs, **resolved}
+            )
 
         t = prop_schema.get("type", "any")
         if t == "integer":
@@ -74,7 +79,9 @@ def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
         elif t == "object":
             if "properties" in prop_schema:
                 sub_schema = {"$defs": defs, **prop_schema}
-                sub_title = prop_schema.get("title", f"{model_name}_{prop_name}".title().replace("_", ""))
+                sub_title = prop_schema.get(
+                    "title", f"{model_name}_{prop_name}".title().replace("_", "")
+                )
                 sub_schema["title"] = sub_title
                 return create_model_from_schema(sub_schema)
             if "additionalProperties" in prop_schema:
@@ -102,6 +109,7 @@ def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
                 fields[prop_name] = (field_type, default)
 
     return create_model(model_name, **fields)
+
 
 class Job(Generic[T]):
     """
@@ -1039,6 +1047,7 @@ class Job(Generic[T]):
                     dummy_data[field_name] = datetime.now()
                 else:
                     from enum import Enum
+
                     if isinstance(field_type, type) and issubclass(field_type, Enum):
                         dummy_data[field_name] = list(field_type)[0]
                     else:
