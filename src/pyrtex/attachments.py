@@ -138,7 +138,8 @@ def parse_source(source: AttachmentSource) -> tuple[str, str]:
 
     if not isinstance(source, str):
         raise ValidationError(
-            f"Attachment must be a pathlib.Path or URI string, got {type(source).__name__}."
+            f"Attachment must be a pathlib.Path or URI string, "
+            f"got {type(source).__name__}."
         )
 
     parsed = urlparse(source)
