@@ -14,7 +14,7 @@ from .config import GenerationConfig, InfrastructureConfig
 from .exceptions import ConfigurationError, JobFailedError
 from .models import BatchResult, T
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = [
     "Job",
     "create_model_from_schema",
