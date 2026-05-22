@@ -527,7 +527,7 @@ class TestJobRequestManagement:
         job.add_request("key1", SimpleInput(word="hello"), output_schema=AltOutput)
 
         assert len(job._requests) == 1
-        assert job._requests[0][2] is AltOutput  # override stored
+        assert job._requests[0][3] is AltOutput  # override stored
 
 
 class TestJobSubmission:
@@ -947,53 +947,24 @@ class TestCloudResourceSetup:
 class TestFileUpload:
     """Test file upload functionality."""
 
-    def test_upload_file_to_gcs_bytes(self, mock_gcp_clients):
-        """Test uploading bytes to GCS."""
+    def test_stage_attachment_path(self, mock_gcp_clients, tmp_path):
+        """Test staging a local Path attachment into GCS."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Test: {{ word }}",
         )
 
-        # Mock bucket and blob
         mock_bucket = Mock()
         mock_blob = Mock()
         mock_gcp_clients["storage"].bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
 
-        test_data = b"test content"
-        gcs_uri, mime_type = job._upload_file_to_gcs(test_data, "test/path.txt")
-
-        # Verify blob upload
-        mock_blob.upload_from_string.assert_called_once_with(
-            test_data, content_type="text/plain"
-        )
-
-        expected_uri = f"gs://{job.config.gcs_bucket_name}/test/path.txt"
-        assert gcs_uri == expected_uri
-        assert mime_type == "text/plain"
-
-    def test_upload_file_to_gcs_path(self, mock_gcp_clients, tmp_path):
-        """Test uploading file path to GCS."""
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,
-            prompt_template="Test: {{ word }}",
-        )
-
-        # Mock bucket and blob
-        mock_bucket = Mock()
-        mock_blob = Mock()
-        mock_gcp_clients["storage"].bucket.return_value = mock_bucket
-        mock_bucket.blob.return_value = mock_blob
-
-        # Create a temporary file
         test_file = tmp_path / "test.txt"
         test_file.write_text("test content")
 
-        gcs_uri, mime_type = job._upload_file_to_gcs(test_file, "test/path.txt")
+        gcs_uri, mime_type = job._stage_attachment(test_file, "test/path.txt")
 
-        # Verify blob upload
         mock_blob.upload_from_filename.assert_called_once_with(
             str(test_file), content_type="text/plain"
         )
@@ -1001,6 +972,21 @@ class TestFileUpload:
         expected_uri = f"gs://{job.config.gcs_bucket_name}/test/path.txt"
         assert gcs_uri == expected_uri
         assert mime_type == "text/plain"
+
+    def test_stage_attachment_gs_passthrough(self, mock_gcp_clients):
+        """gs:// sources are returned as-is, no re-upload."""
+        job = Job(
+            model="gemini-2.0-flash-lite-001",
+            output_schema=SimpleOutput,
+            prompt_template="Test: {{ word }}",
+        )
+
+        gcs_uri, mime_type = job._stage_attachment(
+            "gs://some-bucket/path/file.pdf", "ignored/path.pdf"
+        )
+
+        assert gcs_uri == "gs://some-bucket/path/file.pdf"
+        assert mime_type == "application/pdf"
 
 
 class TestJsonlPayload:
@@ -1035,36 +1021,37 @@ class TestJsonlPayload:
         assert data2["request"]["contents"][0]["parts"][0]["text"] == "Test: world"
 
     def test_create_jsonl_payload_with_file(self, mock_gcp_clients, tmp_path):
-        """Test creating JSONL payload with file data."""
+        """Test creating JSONL payload with an attachment."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
-            prompt_template="Test: {{ image }}",
+            prompt_template="Describe the attached image.",
         )
 
-        # Mock file upload
         mock_gcp_clients[
             "storage"
         ].bucket.return_value.blob.return_value.upload_from_filename = Mock()
 
-        # Create test file
         test_file = tmp_path / "test.jpg"
         test_file.write_bytes(b"fake image data")
 
-        job.add_request("key1", FileInput(image=test_file))
+        job.add_request("key1", attachments=[test_file])
 
         jsonl_payload = job._create_jsonl_payload()
 
-        # Should have uploaded the file
         mock_gcp_clients["storage"].bucket.assert_called()
 
-        # Check JSONL structure
         lines = jsonl_payload.strip().split("\n")
         assert len(lines) == 1
 
         data = json.loads(lines[0])
         assert "id" in data
         assert data["request"]["contents"][0]["role"] == "user"
+        parts = data["request"]["contents"][0]["parts"]
+        # Attachment first, then prompt text.
+        assert "file_data" in parts[0]
+        assert parts[0]["file_data"]["mime_type"] == "image/jpeg"
+        assert parts[1]["text"] == "Describe the attached image."
 
 
 class TestPayloadGeneration:
@@ -1134,8 +1121,7 @@ class TestPayloadGeneration:
         assert gen_config["top_p"] == 0.9
 
     def test_create_jsonl_payload_with_file_path(self, mock_gcp_clients, tmp_path):
-        """Test payload generation with file path input."""
-        # Create a temporary file
+        """Test payload generation with an attachment path."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("test content")
             temp_file_path = Path(f.name)
@@ -1144,11 +1130,10 @@ class TestPayloadGeneration:
             job = Job(
                 model="gemini-2.0-flash-lite-001",
                 output_schema=SimpleOutput,
-                prompt_template="Process {{ text }} from file",
+                prompt_template="Process the attached file.",
             )
 
-            file_input = FileInput(image=temp_file_path)
-            job.add_request("file_key", file_input)
+            job.add_request("file_key", attachments=[temp_file_path])
 
             payload = job._create_jsonl_payload()
 
@@ -1158,7 +1143,6 @@ class TestPayloadGeneration:
             data = json.loads(lines[0])
             parts = data["request"]["contents"][0]["parts"]
 
-            # Should have file_data part
             assert len(parts) == 2
             assert "file_data" in parts[0]
             assert "file_uri" in parts[0]["file_data"]
@@ -1169,41 +1153,41 @@ class TestPayloadGeneration:
                 os.unlink(temp_file_path)
 
     def test_create_jsonl_payload_mixed_input(self, mock_gcp_clients):
-        """Test payload generation with mixed text and file inputs."""
+        """Test payload generation with mixed text and file requests."""
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
-            prompt_template="Process {{ word }} and {{ image }}",
+            prompt_template="Process {{ word }}.",
         )
 
-        # Add text-only request
         job.add_request("text_key", SimpleInput(word="hello"))
 
-        # Add file request
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("file content")
             temp_file_path = Path(f.name)
 
         try:
-            file_input = FileInput(image=temp_file_path)
-            job.add_request("file_key", file_input)
+            job.add_request(
+                "file_key",
+                SimpleInput(word="world"),
+                attachments=[temp_file_path],
+            )
 
             payload = job._create_jsonl_payload()
 
             lines = payload.split("\n")
             assert len(lines) == 2
 
-            # Check text-only request
             text_data = json.loads(lines[0])
             text_parts = text_data["request"]["contents"][0]["parts"]
             assert len(text_parts) == 1
             assert "text" in text_parts[0]
 
-            # Check file request
             file_data = json.loads(lines[1])
             file_parts = file_data["request"]["contents"][0]["parts"]
             assert len(file_parts) == 2
             assert "file_data" in file_parts[0]
+            assert file_parts[1]["text"] == "Process world."
 
         finally:
             if os.path.exists(temp_file_path):
@@ -1390,59 +1374,18 @@ class TestJobEdgeCases:
         assert result.output.score == 0.5
         assert result.output.enabled is False
 
-    def test_bytes_file_upload(self, mock_gcp_clients):
-        """Test file upload with bytes input."""
-        from pydantic import BaseModel
-
-        class BytesInput(BaseModel):
-            data: bytes
-
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=SimpleOutput,
-            prompt_template="Process {{ data }}",
-        )
-
-        test_bytes = b"test content"
-        bytes_input = BytesInput(data=test_bytes)
-        job.add_request("bytes_key", bytes_input)
-
-        payload = job._create_jsonl_payload()
-
-        lines = payload.split("\n")
-        assert len(lines) == 1
-
-        data = json.loads(lines[0])
-        parts = data["request"]["contents"][0]["parts"]
-
-        # Should have file_data part and text part
-        assert len(parts) == 2
-        assert "file_data" in parts[0]
-        assert "file_uri" in parts[0]["file_data"]
-        assert parts[0]["file_data"]["file_uri"].startswith("gs://")
-        assert "text" in parts[1]
-
     def test_path_object_file_upload(self, mock_gcp_clients, tmp_path):
-        """Test file upload with Path object input."""
-        from pathlib import Path
-
-        from pydantic import BaseModel
-
-        class PathInput(BaseModel):
-            file_path: Path
-
-        # Create a temporary file
+        """Test attachment upload with a Path object via attachments=."""
         temp_file = tmp_path / "test.txt"
         temp_file.write_text("test content")
 
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
-            prompt_template="Process {{ file_path }}",
+            prompt_template="Process the attached file.",
         )
 
-        path_input = PathInput(file_path=temp_file)
-        job.add_request("path_key", path_input)
+        job.add_request("path_key", attachments=[temp_file])
 
         payload = job._create_jsonl_payload()
 
@@ -1452,7 +1395,6 @@ class TestJobEdgeCases:
         data = json.loads(lines[0])
         parts = data["request"]["contents"][0]["parts"]
 
-        # Should have file_data part and text part
         assert len(parts) == 2
         assert "file_data" in parts[0]
         assert "file_uri" in parts[0]["file_data"]

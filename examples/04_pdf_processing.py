@@ -31,12 +31,6 @@ class InvoiceData(BaseModel):
     total_amount: float
 
 
-class PDFInput(BaseModel):
-    """Input schema for PDF processing."""
-
-    file_path: Path
-
-
 def main():
     data_dir = Path(__file__).parent / "data"
     pdf_path = data_dir / "sample_invoice.pdf"
@@ -48,10 +42,10 @@ def main():
     job = Job(
         model="gemini-2.0-flash-lite-001",
         output_schema=InvoiceData,
-        prompt_template="Extract invoice data from this PDF: {{ file_path }}",
+        prompt_template="Extract invoice data from the attached PDF.",
     )
 
-    job.add_request("invoice", PDFInput(file_path=pdf_path))
+    job.add_request("invoice", attachments=[pdf_path])
 
     for result in job.submit().wait().results():
         if result.was_successful:

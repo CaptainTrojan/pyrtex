@@ -7,7 +7,6 @@ in a single batch.
 """
 
 from pathlib import Path
-from typing import Union
 
 from pydantic import BaseModel
 
@@ -23,16 +22,9 @@ class ExtractedData(BaseModel):
     data_points: dict[str, str]
 
 
-class FileInput(BaseModel):
-    """Input schema for any file type."""
-
-    file_path: Union[str, Path]
-
-
 def main():
     data_dir = Path(__file__).parent / "data"
 
-    # Define different file types to process
     files_to_process = [
         ("sample_invoice.pdf", "PDF document"),
         ("product_catalog.png", "Image file"),
@@ -43,7 +35,6 @@ def main():
         ("test_minimal.wav", "Audio file"),
     ]
 
-    # Check which files exist
     valid_files = []
     for filename, file_type in files_to_process:
         file_path = data_dir / filename
@@ -58,7 +49,7 @@ def main():
         model="gemini-2.0-flash-lite-001",
         output_schema=ExtractedData,
         prompt_template="""
-Extract key information from this file: {{ file_path }}
+Extract key information from the attached file.
 
 For audio/video files, analyze the content and provide a transcript summary
 if applicable. For other files, extract relevant data.
@@ -70,10 +61,8 @@ Provide:
 """,
     )
 
-    # Add each file type to the batch
-    for file_path, file_type in valid_files:
-        filename = file_path.name
-        job.add_request(filename, FileInput(file_path=file_path))
+    for file_path, _ in valid_files:
+        job.add_request(file_path.name, attachments=[file_path])
 
     print(f"Processing {len(valid_files)} files of different types:")
     for file_path, file_type in valid_files:

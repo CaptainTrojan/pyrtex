@@ -64,18 +64,20 @@ class TestDryRun:
         assert "response_schema" in captured.out
         assert "Dry run enabled. Job was not submitted." in captured.err
 
-    def test_dry_run_output_with_files(self, mock_gcp_clients, capsys):
-        """Verify dry run works with file inputs."""
+    def test_dry_run_output_with_files(self, mock_gcp_clients, capsys, tmp_path):
+        """Verify dry run works with an explicit attachment."""
+        test_file = tmp_path / "note.txt"
+        test_file.write_text("This is test file content")
+
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=SimpleOutput,
             prompt_template="Process {{ text }} from the uploaded file",
         )
-
-        test_content = b"This is test file content"
         job.add_request(
             request_key="file_test",
-            data=FileInput(text="analyze this", file_content=test_content),
+            data=FileInput(text="analyze this"),
+            attachments=[test_file],
         )
 
         job.submit(dry_run=True)
@@ -308,7 +310,7 @@ class TestRealWorldScenarios:
             # Add all existing files to job
             for file_path, filename, expected_mime in existing_files:
                 job.add_request(
-                    filename.replace(".", "_"), FileInput(file_path=file_path)
+                    filename.replace(".", "_"), attachments=[Path(file_path)]
                 )
 
             # Process files
@@ -1203,32 +1205,21 @@ class TestMimeTypeDetection:
             prompt_template="Analyze: {{ text }}",
         )
 
-        # Test cases: (extension, expected_mime_type, file_content)
-        # These are ALL the MIME types supported by Gemini
+        # Vertex's batch endpoint accepts a narrow mime allowlist; textual
+        # formats must use text/plain or the API rejects the request.
         test_cases = [
-            # Text files - all should map to text/plain
             (".txt", "text/plain", "Simple text content"),
-            (".yaml", "text/plain", "key: value\nlist:\n  - item1\n  - item2"),
+            (".yaml", "text/plain", "key: value\n"),
             (".yml", "text/plain", "config:\n  debug: true"),
-            (".json", "text/plain", '{"name": "test", "value": 123}'),
-            (
-                ".xml",
-                "text/plain",
-                '<?xml version="1.0"?><root><item>data</item></root>',
-            ),
-            (".csv", "text/plain", "name,age,city\nJohn,25,NYC\nJane,30,LA"),
-            (".md", "text/plain", "# Title\n\nThis is **markdown**."),
-            (".py", "text/plain", 'def hello():\n    print("Hello World")'),
-            (".js", "text/plain", 'function hello() { console.log("Hello"); }'),
-            (".html", "text/plain", "<html><body><h1>Hello</h1></body></html>"),
-            (".sql", "text/plain", "SELECT * FROM users WHERE age > 25;"),
-            (".log", "text/plain", "2025-07-19 INFO: Application started"),
-            # PDF files
-            # Note: We can't easily create real PDF content in tests
-            # so we'll test the extension mapping only
-            # Unknown extensions should default to text/plain
-            (".unknown", "text/plain", "Some unknown file content"),
-            (".xyz", "text/plain", "Another unknown extension"),
+            (".json", "text/plain", '{"name": "test"}'),
+            (".xml", "text/plain", "<?xml version='1.0'?><root/>"),
+            (".csv", "text/plain", "name,age\nJohn,25"),
+            (".md", "text/plain", "# Title"),
+            (".py", "text/plain", "def hello(): pass"),
+            (".js", "text/plain", "function f() {}"),
+            (".html", "text/plain", "<html></html>"),
+            (".sql", "text/plain", "SELECT 1;"),
+            (".log", "text/plain", "INFO: x"),
         ]
 
         for ext, expected_mime, content in test_cases:
@@ -1237,88 +1228,29 @@ class TestMimeTypeDetection:
                 file_path = f.name
 
             try:
-                gcs_uri, mime_type = job._upload_file_to_gcs(file_path, f"test{ext}")
+                _, mime_type = job._stage_attachment(file_path, f"test{ext}")
                 assert (
                     mime_type == expected_mime
                 ), f"Expected {expected_mime} for {ext}, got {mime_type}"
             finally:
                 Path(file_path).unlink()
 
-    def test_bytes_input_mime_type(self, mock_gcp_clients):
-        """Test that bytes input gets text/plain MIME type."""
+    def test_unsupported_extensions_are_rejected(self, mock_gcp_clients):
+        """Office docs and other unsupported types fail loudly, not silently."""
+        from pyrtex.exceptions import ValidationError
+
         job = Job(
             model="gemini-2.0-flash-lite-001",
             output_schema=ComplexOutput,
-            prompt_template="Analyze: {{ text }}",
+            prompt_template="Analyze.",
         )
 
-        test_bytes = b"Some test content"
-        gcs_uri, mime_type = job._upload_file_to_gcs(test_bytes, "test.bin")
-        assert (
-            mime_type == "text/plain"
-        ), f"Expected text/plain for bytes, got {mime_type}"
-
-    def test_no_unsupported_mime_types(self, mock_gcp_clients):
-        """
-        Ensure we never generate unsupported MIME types that would
-        cause API errors.
-        """
-        job = Job(
-            model="gemini-2.0-flash-lite-001",
-            output_schema=ComplexOutput,
-            prompt_template="Analyze: {{ text }}",
-        )
-
-        # List of Gemini-supported MIME types (as of July 2025)
-        # Reference: https://cloud.google.com/vertex-ai/generative-ai/docs/
-        # model-reference/gemini
-        supported_mime_types = {
-            "application/pdf",
-            "audio/mpeg",
-            "audio/mp3",
-            "audio/wav",
-            "image/png",
-            "image/jpeg",
-            "image/webp",
-            "text/plain",
-            "video/mov",
-            "video/mpeg",
-            "video/mp4",
-            "video/mpg",
-            "video/avi",
-            "video/wmv",
-            "video/mpegps",
-            "video/flv",
-        }
-
-        # Test a variety of file extensions that might produce unsupported MIME types
-        problematic_extensions = [
-            ".json",  # Should NOT be application/json
-            ".xml",  # Should NOT be application/xml
-            ".csv",  # Should NOT be text/csv
-            ".js",  # Should NOT be application/javascript
-            ".css",  # Should NOT be text/css
-            ".html",  # Should NOT be text/html
-            ".doc",  # Should NOT be application/msword
-            ".xlsx",  # Should NOT be application/vnd.openxmlformats-
-            # officedocument.spreadsheetml.sheet
-            ".zip",  # Should NOT be application/zip
-        ]
-
-        for ext in problematic_extensions:
+        for ext in (".docx", ".xlsx", ".pptx", ".doc", ".zip", ".unknown"):
             with tempfile.NamedTemporaryFile(mode="w", suffix=ext, delete=False) as f:
-                f.write(f"Test content for {ext} file")
-                file_path = f.name
-
+                f.write("x")
+                file_path = Path(f.name)
             try:
-                gcs_uri, mime_type = job._upload_file_to_gcs(file_path, f"test{ext}")
-                assert mime_type in supported_mime_types, (
-                    f"Extension {ext} produced unsupported MIME type: {mime_type}. "
-                    f"Supported types: {supported_mime_types}"
-                )
-                # For these text-based extensions, they should all map to text/plain
-                assert (
-                    mime_type == "text/plain"
-                ), f"Extension {ext} should map to text/plain, got {mime_type}"
+                with pytest.raises(ValidationError):
+                    job.add_request(f"k-{ext}", attachments=[file_path])
             finally:
-                Path(file_path).unlink()
+                file_path.unlink()

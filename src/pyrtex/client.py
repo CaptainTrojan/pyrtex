@@ -15,9 +15,11 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Type,
     Union,
 )
+from urllib.parse import urlparse
 
 import google.cloud.aiplatform as aiplatform
 import google.cloud.bigquery as bigquery
@@ -27,11 +29,27 @@ from google.api_core.exceptions import NotFound, ServiceUnavailable
 from google.cloud.aiplatform_v1.types import JobState
 from pydantic import BaseModel
 
+from .attachments import (
+    AttachmentSource,
+    get_model_limits,
+    mime_type_for,
+    parse_source,
+)
 from .config import GenerationConfig, InfrastructureConfig
-from .exceptions import ConfigurationError
+from .exceptions import ConfigurationError, ValidationError
 from .models import BatchResult, T
 
 logger = logging.getLogger(__name__)
+
+
+def _attachment_filename(source: AttachmentSource) -> Optional[str]:
+    """Extracts a filename from an attachment source for GCS staging paths."""
+    if isinstance(source, Path):
+        return source.name
+    parsed = urlparse(source)
+    path = parsed.path if parsed.scheme else source
+    name = Path(path).name
+    return name or None
 
 
 def create_model_from_schema(schema: Dict[str, Any]) -> Type[BaseModel]:
@@ -167,7 +185,8 @@ class Job(Generic[T]):
         self._requests: List[
             tuple[
                 Hashable,
-                BaseModel,
+                Optional[BaseModel],
+                List[AttachmentSource],
                 Optional[Type[BaseModel]],
                 Optional[str],
                 Optional[GenerationConfig],
@@ -474,116 +493,217 @@ class Job(Generic[T]):
     def add_request(
         self,
         request_key: Hashable,
-        data: BaseModel,
+        data: Optional[BaseModel] = None,
+        *,
+        attachments: Optional[Sequence[AttachmentSource]] = None,
         output_schema: Optional[Type[BaseModel]] = None,
         prompt_template: Optional[str] = None,
         generation_config: Optional[GenerationConfig] = None,
     ) -> "Job[T]":
         """
-        Adds a single, structured request to the batch.
+        Adds a single request to the batch.
 
         Args:
             request_key: A unique, hashable identifier for this request.
-            data: A Pydantic model instance containing the input data for the prompt.
-            output_schema: (Optional) A Pydantic model to use as the output schema
-                for this specific request, overriding the job's default schema.
-            prompt_template: (Optional) A string to use as the prompt template for
-                this request, overriding the job's default prompt template.
-            generation_config: (Optional) A GenerationConfig to use for this specific
-                request, overriding the job's default generation config.
+            data: (Optional) A Pydantic model providing variables for the
+                prompt template. Only fields readable by Jinja are used —
+                pyrtex no longer auto-detects ``Path``/``bytes`` fields as
+                attachments. Pass files explicitly via ``attachments=``.
+            attachments: (Optional) Sequence of file sources to send alongside
+                the prompt. Each item may be a ``pathlib.Path`` or a URI
+                string (``s3://bucket/key`` or ``gs://bucket/object``). For
+                ``s3://`` install ``pyrtex[s3]``. Attachments are placed
+                before the prompt text, matching Gemini's expected ordering.
+            output_schema: (Optional) Per-request output schema override.
+            prompt_template: (Optional) Per-request prompt template override.
+            generation_config: (Optional) Per-request generation config override.
         """
         if self._batch_job is not None:
             raise RuntimeError("Cannot add requests after job has been submitted.")
 
-        # Check for duplicate request keys
-        if any(key == request_key for key, _, _, _, _ in self._requests):
-            msg = f"Request key '{request_key}' already exists. "
-            msg += "Use a unique key for each request."
-            raise ValueError(msg)
+        if any(key == request_key for key, _, _, _, _, _ in self._requests):
+            raise ValueError(
+                f"Request key '{request_key}' already exists. "
+                f"Use a unique key for each request."
+            )
 
-        # If an override schema is provided, validate it
         if output_schema:
             self._validate_schema(output_schema)
 
+        attachments_list: List[AttachmentSource] = list(attachments or [])
+        if attachments_list:
+            self._validate_attachments(attachments_list, request_key)
+
         self._requests.append(
-            (request_key, data, output_schema, prompt_template, generation_config)
+            (
+                request_key,
+                data,
+                attachments_list,
+                output_schema,
+                prompt_template,
+                generation_config,
+            )
         )
         return self
 
-    def _upload_file_to_gcs(
-        self, source: Union[str, bytes, Path], gcs_path: str
+    def _upload_jsonl_to_gcs(self, payload: bytes, gcs_path: str) -> str:
+        """Uploads the JSONL request payload to GCS and returns the gs:// URI."""
+        bucket = self._storage_client.bucket(self.config.gcs_bucket_name)
+        blob = bucket.blob(gcs_path)
+        self._retry_with_exponential_backoff(
+            operation=lambda: blob.upload_from_string(
+                payload, content_type="application/jsonl"
+            ),
+            operation_name=f"GCS JSONL upload ({gcs_path})",
+        )
+        return f"gs://{self.config.gcs_bucket_name}/{gcs_path}"
+
+    def _stage_attachment(
+        self, source: AttachmentSource, gcs_path: str
     ) -> tuple[str, str]:
-        """Uploads a local file or bytes to GCS and returns its URI and mime type."""
+        """
+        Stages an attachment into the job's GCS bucket and returns
+        ``(gs_uri, mime_type)``. Dispatches on the source scheme:
+
+        * local Path → upload from filesystem
+        * ``s3://`` → stream from S3 directly into GCS (requires ``pyrtex[s3]``)
+        * ``gs://`` → pass through unchanged (no re-upload)
+        """
+        scheme, identifier = parse_source(source)
+        mime_type = mime_type_for(source)
+
+        if scheme == "gs":
+            # Vertex reads gs:// directly; no staging needed.
+            return identifier, mime_type
+
         bucket = self._storage_client.bucket(self.config.gcs_bucket_name)
         blob = bucket.blob(gcs_path)
 
-        # Improved MIME type detection with only Gemini-supported types
-        if isinstance(source, bytes):
-            # For bytes, we can't detect extension, so default to text/plain
-            mime_type = "text/plain"
-        else:
-            source_path = Path(source)
-            ext = source_path.suffix.lower()
-
-            # Map file extensions to Gemini-supported MIME types only
-            gemini_supported_types = {
-                ".txt": "text/plain",
-                ".yaml": "text/plain",
-                ".yml": "text/plain",
-                ".json": "text/plain",
-                ".xml": "text/plain",
-                ".csv": "text/plain",
-                ".tsv": "text/plain",
-                ".md": "text/plain",
-                ".rst": "text/plain",
-                ".log": "text/plain",
-                ".ini": "text/plain",
-                ".cfg": "text/plain",
-                ".conf": "text/plain",
-                ".py": "text/plain",
-                ".js": "text/plain",
-                ".css": "text/plain",
-                ".html": "text/plain",
-                ".htm": "text/plain",
-                ".sql": "text/plain",
-                ".sh": "text/plain",
-                ".bat": "text/plain",
-                ".ps1": "text/plain",
-                ".pdf": "application/pdf",
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".webp": "image/webp",
-                ".mp3": "audio/mp3",
-                ".mpeg": "audio/mpeg",
-                ".wav": "audio/wav",
-                ".mov": "video/mov",
-                ".mp4": "video/mp4",
-                ".mpv": "video/mpeg",
-                ".mpg": "video/mpg",
-                ".avi": "video/avi",
-                ".wmv": "video/wmv",
-                ".flv": "video/flv",
-            }
-            mime_type = gemini_supported_types.get(ext, "text/plain")
-
-        # Use retry mechanism for file uploads
-        if isinstance(source, bytes):
-            self._retry_with_exponential_backoff(
-                operation=lambda: blob.upload_from_string(
-                    source, content_type=mime_type
-                ),
-                operation_name=f"GCS file upload (bytes to {gcs_path})",
-            )
-        else:
+        if scheme == "file":
+            local_path = Path(identifier)
             self._retry_with_exponential_backoff(
                 operation=lambda: blob.upload_from_filename(
-                    str(source), content_type=mime_type
+                    str(local_path), content_type=mime_type
                 ),
-                operation_name=f"GCS file upload ({source} to {gcs_path})",
+                operation_name=f"GCS file upload ({local_path} to {gcs_path})",
             )
+        elif scheme == "s3":
+            self._stream_s3_to_gcs(identifier, blob, mime_type, gcs_path)
+        else:  # pragma: no cover - parse_source already validates
+            raise ValidationError(f"Unhandled attachment scheme: {scheme}")
 
         return f"gs://{self.config.gcs_bucket_name}/{gcs_path}", mime_type
+
+    def _stream_s3_to_gcs(
+        self,
+        s3_uri: str,
+        blob: Any,
+        mime_type: str,
+        gcs_path: str,
+    ) -> None:
+        """Streams an S3 object directly into a GCS blob without local buffering."""
+        try:
+            import boto3  # type: ignore[import-not-found]
+        except ImportError as e:
+            raise ConfigurationError(
+                "S3 attachments require the 's3' extra. "
+                "Install with: pip install 'pyrtex[s3]'"
+            ) from e
+
+        parsed = urlparse(s3_uri)
+        bucket_name = parsed.netloc
+        key = parsed.path.lstrip("/")
+
+        s3_client = boto3.client("s3")
+        try:
+            obj = s3_client.get_object(Bucket=bucket_name, Key=key)
+        except Exception as e:
+            raise ValidationError(f"Failed to fetch S3 object '{s3_uri}': {e}") from e
+
+        body = obj["Body"]
+        self._retry_with_exponential_backoff(
+            operation=lambda: blob.upload_from_file(body, content_type=mime_type),
+            operation_name=f"GCS upload from S3 ({s3_uri} → {gcs_path})",
+        )
+
+    def _attachment_size_bytes(self, source: AttachmentSource) -> Optional[int]:
+        """
+        Best-effort size lookup for a source. Returns None when the size
+        cannot be determined cheaply (e.g. boto3 not installed for s3 sources).
+        Raises ValidationError if the source clearly doesn't exist.
+        """
+        scheme, identifier = parse_source(source)
+
+        if scheme == "file":
+            local_path = Path(identifier)
+            if not local_path.exists():
+                raise ValidationError(f"Attachment '{local_path}' does not exist.")
+            return local_path.stat().st_size
+
+        if scheme == "s3":
+            try:
+                import boto3  # type: ignore[import-not-found]
+            except ImportError:
+                return None
+            parsed = urlparse(identifier)
+            try:
+                head = boto3.client("s3").head_object(
+                    Bucket=parsed.netloc, Key=parsed.path.lstrip("/")
+                )
+            except Exception as e:
+                raise ValidationError(
+                    f"Failed to HEAD S3 object '{identifier}': {e}"
+                ) from e
+            return int(head["ContentLength"])
+
+        if scheme == "gs":
+            parsed = urlparse(identifier)
+            blob = self._storage_client.bucket(parsed.netloc).get_blob(
+                parsed.path.lstrip("/")
+            )
+            if blob is None:
+                raise ValidationError(
+                    f"GCS object '{identifier}' does not exist or is not accessible."
+                )
+            return int(blob.size or 0)
+
+        return None  # pragma: no cover
+
+    def _validate_attachments(
+        self, attachments: Sequence[AttachmentSource], request_key: Hashable
+    ) -> None:
+        """
+        Validates attachments against the per-model limits registry. Runs at
+        add_request time so users see failures before submitting a batch.
+        """
+        limits = get_model_limits(self.model)
+        if limits is None:
+            logger.warning(
+                f"No size-limit registry entry for model '{self.model}'. "
+                f"Skipping attachment size validation for request '{request_key}'."
+            )
+
+        if limits and len(attachments) > limits.max_files_per_request:
+            raise ValidationError(
+                f"Request '{request_key}' has {len(attachments)} attachments, "
+                f"exceeding the limit of {limits.max_files_per_request} for "
+                f"model '{self.model}'."
+            )
+
+        for source in attachments:
+            # Mime check raises on unsupported extensions.
+            mime_type_for(source)
+            if limits is None:
+                continue
+            size = self._attachment_size_bytes(source)
+            if size is None:
+                continue
+            if size > limits.max_file_bytes:
+                raise ValidationError(
+                    f"Attachment '{source}' in request '{request_key}' is "
+                    f"{size:,} bytes, exceeding the per-file limit of "
+                    f"{limits.max_file_bytes:,} bytes for model '{self.model}'."
+                )
 
     def _get_flattened_schema(
         self, schema_to_flatten: Optional[Type[BaseModel]] = None
@@ -638,36 +758,31 @@ class Job(Generic[T]):
         for i, (
             request_key,
             data_model,
+            attachments,
             override_schema,
             override_prompt,
             override_generation_config,
         ) in enumerate(self._requests):
             instance_id = f"req_{i:05d}_{uuid.uuid4().hex[:8]}"
 
-            # Determine which schema to use and store it for result parsing
             schema_to_use = override_schema or self.output_schema
             self._instance_map[instance_id] = (request_key, schema_to_use)
 
-            parts = []
-            template_context = {}
-            data_dict = data_model.model_dump()
+            parts: List[Dict[str, Any]] = []
 
-            for field_name, value in data_dict.items():
-                if isinstance(value, (bytes, Path)):
-                    if isinstance(value, Path):
-                        filename = value.name
-                    else:
-                        filename = field_name
+            # Attachments first, then the prompt text — the ordering Gemini
+            # is trained on for multimodal inputs.
+            for idx, source in enumerate(attachments):
+                filename = _attachment_filename(source) or f"attachment_{idx}"
+                gcs_path = f"{gcs_session_folder}/{instance_id}/{idx:03d}_{filename}"
+                gcs_uri, mime_type = self._stage_attachment(source, gcs_path)
+                parts.append(
+                    {"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}}
+                )
 
-                    gcs_path = f"{gcs_session_folder}/{instance_id}/{filename}"
-                    gcs_uri, mime_type = self._upload_file_to_gcs(value, gcs_path)
-                    parts.append(
-                        {"file_data": {"mime_type": mime_type, "file_uri": gcs_uri}}
-                    )
-                else:
-                    template_context[field_name] = value
-
-            # Use per-request prompt if provided, else job-level prompt
+            template_context: Dict[str, Any] = (
+                data_model.model_dump() if data_model is not None else {}
+            )
             prompt_to_use = override_prompt or self.prompt_template
             template = self._jinja_env.from_string(prompt_to_use)
             rendered_prompt = template.render(template_context)
@@ -746,7 +861,7 @@ class Job(Generic[T]):
 
         gcs_session_folder = f"batch-inputs/{self._session_id}"
         gcs_path = f"{gcs_session_folder}/input.jsonl"
-        gcs_uri, _ = self._upload_file_to_gcs(jsonl_payload.encode("utf-8"), gcs_path)
+        gcs_uri = self._upload_jsonl_to_gcs(jsonl_payload.encode("utf-8"), gcs_path)
         logger.info(f"Uploaded JSONL payload to {gcs_uri}")
 
         job_display_name = f"pyrtex-job-{self._session_id}"
@@ -972,7 +1087,7 @@ class Job(Generic[T]):
 
     def _generate_dummy_results(self) -> Iterator[BatchResult[Any]]:
         """Generates dummy results for simulation mode."""
-        for request_key, _, override_schema, _, _ in self._requests:
+        for request_key, _, _, override_schema, _, _ in self._requests:
             schema_to_mock = override_schema or self.output_schema
             dummy_output = self._create_dummy_output(schema_to_mock)
 

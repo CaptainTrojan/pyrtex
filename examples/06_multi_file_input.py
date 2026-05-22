@@ -1,86 +1,107 @@
 #!/usr/bin/env python3
 """
-Example 6: Multi-File Input
+Example 6: Multi-Attachment Requests
 
-Demonstrates processing multiple files together in a single request.
+Demonstrates the variable-length ``attachments=`` API: each request can carry
+any number of files, and attachments may come from local paths, ``s3://``
+URIs (with ``pip install 'pyrtex[s3]'``), or ``gs://`` URIs.
 """
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from pyrtex import Job
 
 
 class PropertyAnalysis(BaseModel):
-    """Analysis combining property data and business card information."""
+    """Comparison of a property against multiple potential buyers."""
 
     property_type: str
     estimated_price: float
-    buyer_name: str
-    buyer_company: str
+    best_buyer_name: str
+    best_buyer_company: str
     recommendation: str
     reason: str
-
-
-class MultiFileInput(BaseModel):
-    """Input schema with multiple files in one request."""
-
-    property_file: str = Field(description="Path to property data file")
-    business_card: str = Field(description="Path to business card image")
 
 
 def main():
     data_dir = Path(__file__).parent / "data"
 
-    # Define combinations of property + business card
-    combinations = [
-        ("luxury_condo.yaml", "business_card_1.png"),
-        ("suburban_house.yaml", "business_card_2.png"),
-        ("office_building.json", "business_card_3.png"),
+    # Each request bundles one property file with the business cards of three
+    # potential buyers — the model picks the best fit across all attachments.
+    # Different requests can carry different numbers of attachments.
+    requests = [
+        (
+            "luxury_condo",
+            [
+                data_dir / "luxury_condo.yaml",
+                data_dir / "business_card_1.png",
+                data_dir / "business_card_2.png",
+                data_dir / "business_card_3.png",
+            ],
+        ),
+        (
+            "suburban_house",
+            [
+                data_dir / "suburban_house.yaml",
+                data_dir / "business_card_1.png",
+                data_dir / "business_card_2.png",
+            ],
+        ),
+        (
+            "office_building",
+            [
+                data_dir / "office_building.json",
+                data_dir / "business_card_3.png",
+            ],
+        ),
     ]
 
-    # Check if files exist
-    valid_combinations = []
-    for prop_file, card_file in combinations:
-        prop_path = data_dir / prop_file
-        card_path = data_dir / card_file
-        if prop_path.exists() and card_path.exists():
-            valid_combinations.append((prop_path, card_path))
-
-    if not valid_combinations:
+    # Skip requests whose fixtures are missing.
+    requests = [
+        (key, files) for key, files in requests if all(f.exists() for f in files)
+    ]
+    if not requests:
         print("No valid file combinations found. Run generate_sample_data.py first.")
         return
 
     job = Job(
         model="gemini-2.0-flash-lite-001",
         output_schema=PropertyAnalysis,
-        prompt_template="""
-Analyze the property data and business card together.
-
-Property details: {{ property_file }}
-Potential buyer: {{ business_card }}
-
-Based on both files, provide a purchase recommendation.
-""",
+        prompt_template=(
+            "You are given a property data file followed by one or more "
+            "potential buyers' business cards. Pick the buyer that best fits "
+            "the property and explain why."
+        ),
     )
 
-    # Add each combination as a single request with multiple files
-    for i, (prop_path, card_path) in enumerate(valid_combinations, 1):
-        job.add_request(
-            f"combo_{i}",
-            MultiFileInput(property_file=prop_path, business_card=card_path),
-        )
+    for key, files in requests:
+        job.add_request(key, attachments=files)
 
-    print(f"Processing {len(valid_combinations)} property-buyer combinations...")
+    # The same API accepts remote URIs — pyrtex fetches them in your process
+    # and stages them into the job's GCS bucket. Useful from Lambda contexts
+    # where you'd otherwise download to /tmp first:
+    #
+    #   job.add_request(
+    #       "from_s3",
+    #       attachments=[
+    #           "s3://my-bucket/contracts/2025-01-lease.pdf",
+    #           "gs://shared-assets/floorplans/unit-204.png",
+    #       ],
+    #   )
 
+    print(f"Processing {len(requests)} property analyses...")
     for result in job.submit().wait().results():
         if result.was_successful:
             analysis = result.output
             print(f"\n{result.request_key}:")
             print(f"  Property: {analysis.property_type}")
-            print(f"  Price: ${analysis.estimated_price:,.0f}")
-            print(f"  Buyer: {analysis.buyer_name} ({analysis.buyer_company})")
+            print(f"  Estimated price: ${analysis.estimated_price:,.0f}")
+            print(
+                f"  Best buyer: {analysis.best_buyer_name} "
+                f"({analysis.best_buyer_company})"
+            )
             print(f"  Recommendation: {analysis.recommendation}")
             print(f"  Reason: {analysis.reason}")
 
